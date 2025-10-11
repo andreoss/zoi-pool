@@ -1,5 +1,5 @@
 val zioVersion      = "2.1.21"
-val scala3Version   = "3.3.6"
+val scala3Version   = "3.3.7"
 val scala213Version = "2.13.17"
 
 inThisBuild(
