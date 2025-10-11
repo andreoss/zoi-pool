@@ -1,4 +1,5 @@
 val zioVersion      = "2.1.21"
+val h2Version       = "2.3.232"
 val scala3Version   = "3.3.7"
 val scala213Version = "2.13.17"
 
@@ -38,5 +39,6 @@ lazy val core = (project in file("core"))
       "dev.zio" %% "zio"          % zioVersion,
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
+      "com.h2database" % "h2"       % h2Version  % Test,
     ),
   )
