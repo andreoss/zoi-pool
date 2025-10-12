@@ -31,6 +31,7 @@ final case class PoolConfig(
   leakDetectionThreshold: Duration = Duration.Zero,
   aliveBypassWindow: Duration = 500.millis,
   shutdownTimeout: Duration = 30.seconds,
+  maintenanceInterval: Option[Duration] = None,
   autoCommit: Boolean = true,
   transactionIsolation: Option[TransactionIsolation] = None,
   readOnly: Boolean = false,
@@ -58,6 +59,18 @@ final case class PoolConfig(
   def maxLifetimeEnabled: Boolean    = maxLifetime.toNanos > 0L
   def idleTimeoutEnabled: Boolean    = idleTimeout.toNanos > 0L
 
+  /** How often the housekeeper runs: often enough for the shortest policy. */
+  def effectiveMaintenanceInterval: Duration =
+    maintenanceInterval.getOrElse {
+      val policies = List(idleTimeout, maxLifetime, keepaliveTime, leakDetectionThreshold)
+        .map(_.toNanos)
+        .filter(_ > 0L)
+      val derived  = if (policies.isEmpty) PoolConfig.MaxMaintenanceNanos else policies.min / 4L
+      Duration.fromNanos(
+        math.min(PoolConfig.MaxMaintenanceNanos, math.max(PoolConfig.MinMaintenanceNanos, derived)),
+      )
+    }
+
   /** Renders without url, credentials or driver properties. */
   override def toString: String =
     s"PoolConfig(poolName=$poolName, maximumPoolSize=$maximumPoolSize, " +
@@ -73,6 +86,9 @@ object PoolConfig {
 
   val DefaultPoolName: String  = "zoi-pool"
   val DefaultJmxDomain: String = "dev.zoi.pool"
+
+  private[pool] val MinMaintenanceNanos: Long = 100L * 1000000L
+  private[pool] val MaxMaintenanceNanos: Long = 30L * 1000000000L
 
   /** Builds a config, collecting every violation instead of throwing. */
   def validated(config: => PoolConfig): Either[Chunk[PoolConfigError], PoolConfig] =
@@ -118,6 +134,7 @@ object PoolConfig {
     requireNonNegative("leakDetectionThreshold", c.leakDetectionThreshold)
     requireNonNegative("aliveBypassWindow", c.aliveBypassWindow)
     requireNonNegative("shutdownTimeout", c.shutdownTimeout)
+    c.maintenanceInterval.foreach(interval => requirePositive("maintenanceInterval", interval))
 
     if (c.statementCacheSize < 0) reject("statementCacheSize", "must not be negative")
 

@@ -70,15 +70,16 @@ private[pool] final class PoolCore[A](
   def drainIdle: UIO[Chunk[A]] =
     idleRef.modify(idle => (Chunk.fromIterable(idle), Nil)).commit.uninterruptible
 
-  /** Takes idle resources the predicate selects, newest last. */
-  def takeIdleWhere(select: A => Boolean): UIO[Chunk[A]] =
-    ZSTM.atomically {
-      idleRef.modify { idle =>
-        val (taken, kept) = idle.partition(select)
-        (Chunk.fromIterable(taken), kept)
-      }
-    }.uninterruptible
-
+  /** Takes up to `limit` idle resources the predicate selects, oldest first. */
+  def takeIdleWhere(limit: Int, select: A => Boolean): UIO[Chunk[A]] =
+    if (limit <= 0) ZIO.succeed(Chunk.empty)
+    else
+      ZSTM.atomically {
+        idleRef.modify { idle =>
+          val (taken, kept) = PoolCore.pickOldest(idle, limit, select)
+          (taken, kept)
+        }
+      }.uninterruptible
   def idleCount: UIO[Int]    = idleRef.get.map(_.length).commit
   def totalCount: UIO[Int]   = totalRef.get.commit
   def waitingCount: UIO[Int] = waitingRef.get.commit
@@ -177,6 +178,23 @@ private[pool] object PoolCore {
         closed  <- TRef.make(false)
       } yield new PoolCore[A](poolName, maxSize, idle, total, waiting, closed)
     }
+
+  private[pool] def pickOldest[A](
+    idle: List[A],
+    limit: Int,
+    select: A => Boolean,
+  ): (Chunk[A], List[A]) = {
+    val builder = Chunk.newBuilder[A]
+    var budget  = limit
+    val kept    = idle.reverse.filter { candidate =>
+      if (budget > 0 && select(candidate)) {
+        builder += candidate
+        budget -= 1
+        false
+      } else true
+    }
+    (builder.result(), kept.reverse)
+  }
 
   private def removeFirst[A](list: List[A], value: A): List[A] = {
     val index = list.indexWhere(_.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef])

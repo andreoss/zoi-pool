@@ -22,31 +22,49 @@ trait ConnectionPool {
 
   /** How many connections the pool holds right now, and in which state. */
   def state: UIO[PoolState]
+
+  /** Drops a borrowed connection the caller knows is bad. Idempotent. */
+  def invalidate(connection: Connection): UIO[Unit]
+
+  /** Stops handing out connections; current borrowers keep theirs. Idempotent. */
+  def suspend: UIO[Unit]
+
+  /** Undoes `suspend`, releasing everyone who blocked meanwhile. Idempotent. */
+  def resume: UIO[Unit]
 }
 
 object ConnectionPool {
 
   /** Builds a pool that shuts down when the surrounding scope closes. */
-  def scoped(config: PoolConfig): ZIO[Scope, SQLException, ConnectionPool] =
-    for {
-      factory <- ConnectionFactory.make(config)
-      core    <- PoolCore.make[PooledConnection](config.poolName, config.maximumPoolSize)
-      runtime <- ZIO.runtime[Any]
-      pool     = new ConnectionPoolLive(config, factory, core, runtime)
-      _       <- ZIO.addFinalizer(pool.shutdown)
-    } yield pool
+  def scoped(
+    config: PoolConfig,
+    hooks: PoolHooks = PoolHooks.default,
+  ): ZIO[Scope, SQLException, ConnectionPool] =
+    ConnectionPoolLive.scoped(config, hooks)
 
-  def layer(config: PoolConfig): ZLayer[Any, SQLException, ConnectionPool] =
-    ZLayer.scoped(scoped(config))
+  def layer(
+    config: PoolConfig,
+    hooks: PoolHooks = PoolHooks.default,
+  ): ZLayer[Any, SQLException, ConnectionPool] =
+    ZLayer.scoped(scoped(config, hooks))
+
+  /** A `DataSource` layer, for consumers that take one. */
+  def dataSourceLayer(
+    config: PoolConfig,
+    hooks: PoolHooks = PoolHooks.default,
+  ): ZLayer[Any, SQLException, DataSource] =
+    ZLayer.scoped(scoped(config, hooks).map(_.dataSource))
 
   /** Borrows a connection from the pool in the environment. */
   def connection: ZIO[ConnectionPool with Scope, SQLException, Connection] =
     ZIO.serviceWithZIO[ConnectionPool](_.connection)
 
-  /** A `DataSource` layer, for consumers that take one. */
-  def dataSourceLayer(config: PoolConfig): ZLayer[Any, SQLException, DataSource] =
-    ZLayer.scoped(scoped(config).map(_.dataSource))
-
   def state: ZIO[ConnectionPool, Nothing, PoolState] =
     ZIO.serviceWithZIO[ConnectionPool](_.state)
+
+  def suspend: ZIO[ConnectionPool, Nothing, Unit] =
+    ZIO.serviceWithZIO[ConnectionPool](_.suspend)
+
+  def resume: ZIO[ConnectionPool, Nothing, Unit] =
+    ZIO.serviceWithZIO[ConnectionPool](_.resume)
 }

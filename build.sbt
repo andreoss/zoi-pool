@@ -9,7 +9,7 @@ inThisBuild(
     version            := "0.1.0-SNAPSHOT",
     scalaVersion       := scala3Version,
     crossScalaVersions := List(scala213Version, scala3Version),
-    semanticdbEnabled  := true,
+    semanticdbEnabled  := false,
     semanticdbVersion  := scalafixSemanticdb.revision,
     licenses           := List("LGPL-3.0" -> url("https://www.gnu.org/licenses/lgpl-3.0.html")),
   ),
