@@ -1,17 +1,27 @@
 package zoi.pool
 
 import java.sql.{Connection, SQLException}
+import javax.sql.DataSource
 
-import zio.{IO, Scope, UIO, ZIO}
+import zio.{IO, Runtime, Scope, UIO, Unsafe, ZIO}
 
 private[pool] final class ConnectionPoolLive(
   config: PoolConfig,
   factory: ConnectionFactory,
   core: PoolCore[PooledConnection],
+  runtime: Runtime[Any],
 ) extends ConnectionPool {
 
+  private val releaseFromJdbc: ConnectionHandle => Unit =
+    handle =>
+      Unsafe.unsafe { implicit unsafe =>
+        runtime.unsafe.run(returnHandle(handle)).getOrThrowFiberFailure()
+      }
+
+  val dataSource: DataSource = new PoolDataSource(this, config)
+
   def connection: ZIO[Scope, SQLException, Connection] =
-    ZIO.acquireRelease(checkout)(checkin).map(_.raw)
+    ZIO.acquireRelease(checkoutHandle)(returnHandle).map(handle => handle: Connection)
 
   def state: UIO[PoolState] =
     for {
@@ -27,6 +37,24 @@ private[pool] final class ConnectionPoolLive(
       suspended = false,
       shutdown = shutdown,
     )
+
+  /** Borrows from a synchronous caller, translating failure into JDBC's terms. */
+  private[pool] def borrowUnsafe(): Connection =
+    Unsafe.unsafe { implicit unsafe =>
+      runtime.unsafe.run(checkoutHandle.either).getOrThrowFiberFailure() match {
+        case Right(handle) => handle
+        case Left(failure) => throw failure
+      }
+    }
+
+  private[pool] def checkoutHandle: IO[SQLException, ConnectionHandle] =
+    checkout.map(pooled => new ConnectionHandle(pooled, releaseFromJdbc))
+
+  private[pool] def returnHandle(handle: ConnectionHandle): UIO[Unit] =
+    ZIO.succeed(handle.claimRelease()).flatMap {
+      case false => ZIO.unit
+      case true  => ZIO.succeed(handle.closeTrackedStatements()) *> checkin(handle.pooled)
+    }
 
   private[pool] def checkout: IO[SQLException, PooledConnection] =
     core.acquire(config.connectionTimeout).flatMap {

@@ -32,11 +32,12 @@ import scala.collection.mutable
  */
 private[pool] final class ConnectionHandle(
   private[pool] val pooled: PooledConnection,
-  onClose: ConnectionHandle => Unit,
+  release: ConnectionHandle => Unit,
 ) extends Connection {
 
-  private val opened            = mutable.ArrayBuffer.empty[Statement]
-  @volatile private var closed  = false
+  private val opened           = mutable.ArrayBuffer.empty[Statement]
+  @volatile private var closed = false
+  private var released         = false
 
   private def raw: Connection = {
     if (closed) throw new SQLException("connection is closed", PoolException.ConnectionDoesNotExist)
@@ -50,6 +51,17 @@ private[pool] final class ConnectionHandle(
 
   private def dirty(): Unit = pooled.stateDirty = true
 
+  /** Wins the right to return this connection exactly once. */
+  private[pool] def claimRelease(): Boolean =
+    synchronized {
+      if (released) false
+      else {
+        released = true
+        closed = true
+        true
+      }
+    }
+
   /** Closes what the borrower opened; errors here never mask the borrow. */
   private[pool] def closeTrackedStatements(): Unit = {
     val statements = opened.synchronized {
@@ -57,17 +69,13 @@ private[pool] final class ConnectionHandle(
       opened.clear()
       snapshot
     }
-    statements.foreach(statement => try statement.close()
-    catch { case _: SQLException => () })
+    statements.foreach { statement =>
+      try statement.close()
+      catch { case _: SQLException => () }
+    }
   }
 
-  private[pool] def markClosed(): Unit = closed = true
-
-  override def close(): Unit =
-    if (!closed) {
-      closed = true
-      onClose(this)
-    }
+  override def close(): Unit = if (!closed) release(this)
 
   override def isClosed: Boolean = closed || pooled.raw.isClosed
 
@@ -249,8 +257,8 @@ private[pool] final class ConnectionHandle(
   override def setShardingKey(shardingKey: ShardingKey): Unit = raw.setShardingKey(shardingKey)
 
   override def unwrap[T](iface: Class[T]): T =
-    if (iface.isInstance(this)) iface.cast(this) else pooled.raw.unwrap(iface)
+    if (iface.isInstance(pooled.raw)) iface.cast(pooled.raw) else pooled.raw.unwrap(iface)
 
   override def isWrapperFor(iface: Class[_]): Boolean =
-    iface.isInstance(this) || pooled.raw.isWrapperFor(iface)
+    iface.isInstance(pooled.raw) || pooled.raw.isWrapperFor(iface)
 }

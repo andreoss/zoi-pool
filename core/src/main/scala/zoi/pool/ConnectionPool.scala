@@ -1,6 +1,7 @@
 package zoi.pool
 
 import java.sql.{Connection, SQLException}
+import javax.sql.DataSource
 
 import zio.{Scope, UIO, ZIO, ZLayer}
 
@@ -16,6 +17,9 @@ trait ConnectionPool {
   /** Borrows a connection for the duration of the caller's scope. */
   def connection: ZIO[Scope, SQLException, Connection]
 
+  /** The same pool seen as a plain JDBC `DataSource`. */
+  def dataSource: DataSource
+
   /** How many connections the pool holds right now, and in which state. */
   def state: UIO[PoolState]
 }
@@ -27,7 +31,8 @@ object ConnectionPool {
     for {
       factory <- ConnectionFactory.make(config)
       core    <- PoolCore.make[PooledConnection](config.poolName, config.maximumPoolSize)
-      pool     = new ConnectionPoolLive(config, factory, core)
+      runtime <- ZIO.runtime[Any]
+      pool     = new ConnectionPoolLive(config, factory, core, runtime)
       _       <- ZIO.addFinalizer(pool.shutdown)
     } yield pool
 
@@ -37,6 +42,10 @@ object ConnectionPool {
   /** Borrows a connection from the pool in the environment. */
   def connection: ZIO[ConnectionPool with Scope, SQLException, Connection] =
     ZIO.serviceWithZIO[ConnectionPool](_.connection)
+
+  /** A `DataSource` layer, for consumers that take one. */
+  def dataSourceLayer(config: PoolConfig): ZLayer[Any, SQLException, DataSource] =
+    ZLayer.scoped(scoped(config).map(_.dataSource))
 
   def state: ZIO[ConnectionPool, Nothing, PoolState] =
     ZIO.serviceWithZIO[ConnectionPool](_.state)

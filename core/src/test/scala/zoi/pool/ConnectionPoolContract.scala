@@ -31,13 +31,13 @@ object ConnectionPoolContract {
                    }
         } yield assertTrue(state.idle == 1, state.active == 0, state.total == 1)
       },
-      test("reuses a pooled connection instead of opening another") {
+      test("reuses the physical connection instead of opening another") {
         for {
           url    <- backend.freshUrl
           result <- withPool(backend.config(url)) { pool =>
                       for {
-                        first  <- borrow(pool)(connection => connection)
-                        second <- borrow(pool)(connection => connection)
+                        first  <- borrow(pool)(_.unwrap(classOf[java.sql.Connection]))
+                        second <- borrow(pool)(_.unwrap(classOf[java.sql.Connection]))
                         state  <- pool.state
                       } yield (first eq second) && (state.total == 1)
                     }
@@ -154,6 +154,85 @@ object ConnectionPoolContract {
                        ZIO.foreachPar(1 to 16)(_ => borrow(pool)(queryInt(_, backend.selectOne)))
                      }
         } yield assertTrue(answers.forall(_ == 1), answers.length == 16)
+      },
+      test("hands out connections through a plain DataSource") {
+        for {
+          url    <- backend.freshUrl
+          answer <- withPool(backend.config(url)) { pool =>
+                      ZIO.attemptBlocking {
+                        val source     = pool.dataSource
+                        val connection = source.getConnection()
+                        try queryInt(connection, backend.selectOne)
+                        finally connection.close()
+                      }
+                    }
+        } yield assertTrue(answer == 1)
+      },
+      test("a DataSource connection goes back to the pool when it is closed") {
+        for {
+          url   <- backend.freshUrl
+          state <- withPool(backend.config(url)) { pool =>
+                     ZIO.attemptBlocking {
+                       val connection = pool.dataSource.getConnection()
+                       connection.close()
+                     } *> pool.state
+                   }
+        } yield assertTrue(state.idle == 1, state.active == 0, state.total == 1)
+      },
+      test("closing a borrowed connection twice returns it once") {
+        for {
+          url   <- backend.freshUrl
+          state <- withPool(backend.config(url)) { pool =>
+                     ZIO.attemptBlocking {
+                       val connection = pool.dataSource.getConnection()
+                       connection.close()
+                       connection.close()
+                     } *> pool.state
+                   }
+        } yield assertTrue(state.idle == 1, state.total == 1)
+      },
+      test("a returned connection rejects further use") {
+        for {
+          url     <- backend.freshUrl
+          outcome <- withPool(backend.config(url)) { pool =>
+                       ZIO.attemptBlocking {
+                         val connection = pool.dataSource.getConnection()
+                         connection.close()
+                         (connection.isClosed, scala.util.Try(connection.createStatement()).isFailure)
+                       }
+                     }
+        } yield assertTrue(outcome._1, outcome._2)
+      },
+      test("statements a borrower left open are closed when it returns") {
+        for {
+          url       <- backend.freshUrl
+          statement <- withPool(backend.config(url)) { pool =>
+                         ZIO.attemptBlocking {
+                           val connection = pool.dataSource.getConnection()
+                           val opened     = connection.createStatement()
+                           connection.close()
+                           opened
+                         }
+                       }
+          closed    <- ZIO.attemptBlocking(statement.isClosed)
+        } yield assertTrue(closed)
+      },
+      test("a borrower that closes its own connection does not break the scope") {
+        for {
+          url   <- backend.freshUrl
+          state <- withPool(backend.config(url)) { pool =>
+                     ZIO.scoped(pool.connection.flatMap(c => ZIO.attemptBlocking(c.close()))) *>
+                       pool.state
+                   }
+        } yield assertTrue(state.idle == 1, state.total == 1)
+      },
+      test("the DataSource refuses per-call credentials") {
+        for {
+          url     <- backend.freshUrl
+          outcome <- withPool(backend.config(url)) { pool =>
+                       ZIO.attemptBlocking(pool.dataSource.getConnection("a", "b")).either
+                     }
+        } yield assert(outcome)(isLeft(isSubtype[java.sql.SQLFeatureNotSupportedException](anything)))
       },
     ) @@ withLiveClock @@ withLiveRandom @@ timeout(120.seconds)
 }
