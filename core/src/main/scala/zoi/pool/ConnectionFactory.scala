@@ -43,12 +43,14 @@ private[pool] final class ConnectionFactory(config: PoolConfig) {
 
   /**
    * Puts a returned connection back into its configured state. A borrower that
-   * changed nothing costs no round trips: only the local warning clear runs.
+   * changed nothing costs no round trips and no executor hop: only the local
+   * warning clear runs, inline.
    */
   def reset(connection: Connection, dirty: Boolean): UIO[Boolean] =
-    ZIO
-      .attemptBlocking {
-        if (dirty) {
+    if (!dirty) ZIO.succeed(clearWarnings(connection))
+    else
+      ZIO
+        .attemptBlocking {
           if (!connection.getAutoCommit) {
             connection.rollback()
             connection.setAutoCommit(config.autoCommit)
@@ -64,12 +66,16 @@ private[pool] final class ConnectionFactory(config: PoolConfig) {
           config.schema.foreach(schema =>
             if (connection.getSchema != schema) connection.setSchema(schema),
           )
+          connection.clearWarnings()
+          true
         }
-        connection.clearWarnings()
-        true
-      }
-      .catchAll(_ => ZIO.succeed(false))
+        .catchAll(_ => ZIO.succeed(false))
 
+  private def clearWarnings(connection: Connection): Boolean =
+    try {
+      connection.clearWarnings()
+      true
+    } catch { case _: SQLException => false }
   /** Checks a connection is still usable, by test query or by `isValid`. */
   def validate(connection: Connection): UIO[Boolean] =
     ZIO

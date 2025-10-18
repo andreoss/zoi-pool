@@ -23,6 +23,9 @@ trait ConnectionPool {
   /** How many connections the pool holds right now, and in which state. */
   def state: UIO[PoolState]
 
+  /** Everything the pool has counted, plus what it holds right now. */
+  def metrics: UIO[PoolMetricsSnapshot]
+
   /** Drops a borrowed connection the caller knows is bad. Idempotent. */
   def invalidate(connection: Connection): UIO[Unit]
 

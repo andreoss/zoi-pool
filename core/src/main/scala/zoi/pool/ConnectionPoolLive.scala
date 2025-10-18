@@ -20,6 +20,8 @@ private[pool] final class ConnectionPoolLive(
   private val leakThresholdNanos     = config.leakDetectionThreshold.toNanos
   private val idleTimeoutNanos       = config.idleTimeout.toNanos
   private val keepaliveNanos         = config.keepaliveTime.toNanos
+  private val recorder               = hooks.metrics
+  private val metricsEnabled         = recorder ne PoolMetrics.none
 
   private val releaseFromJdbc: ConnectionHandle => Unit =
     handle =>
@@ -30,11 +32,120 @@ private[pool] final class ConnectionPoolLive(
   val dataSource: DataSource = new PoolDataSource(this, config)
 
   def connection: ZIO[Scope, SQLException, Connection] =
-    ZIO
-      .acquireReleaseExit(checkoutHandle) { (handle, exit) =>
-        noteExit(handle, exit) *> returnHandle(handle)
+    ZIO.acquireReleaseExit(checkoutHandle)(releaseHandle)
+
+  private[pool] def checkoutHandle: IO[SQLException, ConnectionHandle] =
+    if (metricsEnabled) timedCheckout else plainCheckout
+
+  private def plainCheckout: IO[SQLException, ConnectionHandle] =
+    awaitResume *> Clock.nanoTime.flatMap(now =>
+      acquireLoop(now + connectionTimeoutNanos, now).map(acquired => handleFor(acquired.pooled)),
+    )
+
+  private def timedCheckout: IO[SQLException, ConnectionHandle] =
+    awaitResume *> Clock.nanoTime.flatMap { start =>
+      acquireLoop(start + connectionTimeoutNanos, start).foldZIO(
+        failure => ZIO.succeed(noteAcquireFailure(failure)) *> ZIO.fail(failure),
+        acquisition =>
+          Clock.nanoTime.map { end =>
+            recorder.acquireSucceeded(end - start, acquisition.waited)
+            handleFor(acquisition.pooled)
+          },
+      )
+    }
+
+  private def handleFor(pooled: PooledConnection): ConnectionHandle =
+    new ConnectionHandle(pooled, releaseFromJdbc, markBroken(pooled))
+
+  private def noteAcquireFailure(failure: SQLException): Unit =
+    failure match {
+      case _: PoolTimeoutException => recorder.acquireTimedOut()
+      case _                       => ()
+    }
+
+  private def awaitResume: UIO[Unit] =
+    suspendGate.get.flatMap {
+      case None       => ZIO.unit
+      case Some(gate) => gate.await
+    }
+
+  /**
+   * The uncontended path is one clock read, one hand-off and one pure check:
+   * a connection returned moments ago is known good, so nothing is validated
+   * and nothing is scheduled on the blocking executor.
+   */
+  private def acquireLoop(
+    deadlineNanos: Long,
+    nowNanos: Long,
+  ): IO[SQLException, ConnectionPoolLive.Acquisition] = {
+    val remaining = deadlineNanos - nowNanos
+    if (remaining <= 0L)
+      ZIO.fail(new PoolTimeoutException(config.poolName, config.connectionTimeout))
+    else
+      core.acquire(Duration.fromNanos(remaining)).flatMap {
+        case PoolCore.Acquired.Reserved(waited)      =>
+          createConnection
+            .onInterrupt(core.releaseSlot)
+            .foldZIO(
+              failure => core.releaseSlot *> retryCreate(deadlineNanos, failure),
+              pooled => borrowed(pooled, waited),
+            )
+        case PoolCore.Acquired.Ready(pooled, waited) =>
+          if (!waited && knownGood(pooled, nowNanos)) borrowed(pooled, waited)
+          else recheck(pooled, waited, deadlineNanos)
       }
-      .map(handle => handle: Connection)
+  }
+
+  private def knownGood(pooled: PooledConnection, nowNanos: Long): Boolean =
+    !pooled.broken &&
+      !pooled.expiredAt(nowNanos) &&
+      nowNanos - pooled.lastReturnedNanos <= bypassWindowNanos
+
+  private def recheck(
+    pooled: PooledConnection,
+    waited: Boolean,
+    deadlineNanos: Long,
+  ): IO[SQLException, ConnectionPoolLive.Acquisition] =
+    Clock.nanoTime.flatMap { now =>
+      if (knownGood(pooled, now)) borrowed(pooled, waited)
+      else if (pooled.broken || pooled.expiredAt(now))
+        destroy(pooled) *> acquireLoop(deadlineNanos, now)
+      else
+        factory.validate(pooled.raw).flatMap {
+          case true  =>
+            pooled.lastValidatedNanos = now
+            pooled.lastReturnedNanos = now
+            borrowed(pooled, waited)
+          case false => destroy(pooled) *> acquireLoop(deadlineNanos, now)
+        }
+    }
+
+  private def borrowed(
+    pooled: PooledConnection,
+    waited: Boolean,
+  ): UIO[ConnectionPoolLive.Acquisition] =
+    if (!config.leakDetectionEnabled)
+      ZIO.succeed(ConnectionPoolLive.Acquisition(pooled, waited))
+    else
+      Clock.nanoTime.map { now =>
+        pooled.leakReported = false
+        pooled.borrowedAtNanos = now
+        pooled.borrowed = true
+        ConnectionPoolLive.Acquisition(pooled, waited)
+      }
+
+  /** A database that is briefly unreachable is retried inside the caller's budget. */
+  private def retryCreate(
+    deadlineNanos: Long,
+    failure: SQLException,
+  ): IO[SQLException, ConnectionPoolLive.Acquisition] =
+    Clock.nanoTime.flatMap { now =>
+      val remaining = deadlineNanos - now
+      if (remaining <= 0L) ZIO.fail(failure)
+      else
+        ZIO.sleep(Duration.fromNanos(math.min(remaining, ConnectionPoolLive.RetryDelayNanos))) *>
+          acquireLoop(deadlineNanos, now)
+    }
 
   def state: UIO[PoolState] =
     for {
@@ -51,6 +162,8 @@ private[pool] final class ConnectionPoolLive(
       suspended = suspended,
       shutdown = shutdown,
     )
+
+  def metrics: UIO[PoolMetricsSnapshot] = state.map(recorder.counters.withState)
 
   /** Drops a connection the caller knows is bad; it is closed when returned. */
   def invalidate(connection: Connection): UIO[Unit] =
@@ -85,11 +198,6 @@ private[pool] final class ConnectionPoolLive(
       }
     }
 
-  private[pool] def checkoutHandle: IO[SQLException, ConnectionHandle] =
-    checkout.map { pooled =>
-      new ConnectionHandle(pooled, releaseFromJdbc, markBroken(pooled))
-    }
-
   /**
    * A borrower's own failure is the cheapest health signal there is: a fatal
    * SQLException means the connection is not pooled again, and nothing had to
@@ -100,91 +208,29 @@ private[pool] final class ConnectionPoolLive(
       if (config.failureTracking && hooks.classification(failure) == SqlExceptionClassification.Fatal)
         pooled.broken = true
 
-  private def noteExit(handle: ConnectionHandle, exit: Exit[Any, Any]): UIO[Unit] =
-    ZIO.succeed {
-      if (config.failureTracking) exit match {
-        case Exit.Failure(cause) =>
-          val raised = cause.failures.collect { case failure: Throwable => failure } ++ cause.defects
-          if (raised.exists(hooks.classification(_) == SqlExceptionClassification.Fatal))
-            handle.pooled.broken = true
-        case _                   => ()
-      }
+  private def releaseHandle(handle: ConnectionHandle, exit: Exit[Any, Any]): UIO[Unit] =
+    ZIO.suspendSucceed {
+      if (config.failureTracking) noteExit(handle, exit)
+      returnHandle(handle)
+    }
+
+  private def noteExit(handle: ConnectionHandle, exit: Exit[Any, Any]): Unit =
+    exit match {
+      case Exit.Failure(cause) =>
+        val raised = cause.failures.collect { case failure: Throwable => failure } ++ cause.defects
+        if (raised.exists(hooks.classification(_) == SqlExceptionClassification.Fatal))
+          handle.pooled.broken = true
+      case _                   => ()
     }
 
   private[pool] def returnHandle(handle: ConnectionHandle): UIO[Unit] =
-    ZIO.succeed(handle.claimRelease()).flatMap {
-      case false => ZIO.unit
-      case true  => ZIO.succeed(handle.closeTrackedStatements()) *> checkin(handle.pooled)
-    }
-
-  private[pool] def checkout: IO[SQLException, PooledConnection] =
-    awaitResume *> Clock.nanoTime.flatMap(now => acquireLoop(now + connectionTimeoutNanos))
-
-  private def awaitResume: UIO[Unit] =
-    suspendGate.get.flatMap {
-      case None       => ZIO.unit
-      case Some(gate) => gate.await
-    }
-
-  private def acquireLoop(deadlineNanos: Long): IO[SQLException, PooledConnection] =
-    budget(deadlineNanos).flatMap { remaining =>
-      core.acquire(remaining).flatMap {
-        case PoolCore.Acquired.Reserved         =>
-          createConnection
-            .onInterrupt(core.releaseSlot)
-            .foldZIO(
-              failure => core.releaseSlot *> retryCreate(deadlineNanos, failure),
-              markBorrowed,
-            )
-        case PoolCore.Acquired.Ready(pooled, _) =>
-          usable(pooled).flatMap {
-            case true  => markBorrowed(pooled)
-            case false => destroy(pooled) *> acquireLoop(deadlineNanos)
-          }
+    ZIO.suspendSucceed {
+      if (!handle.claimRelease()) ZIO.unit
+      else {
+        handle.closeTrackedStatements()
+        checkin(handle.pooled)
       }
     }
-
-  /** A database that is briefly unreachable is retried inside the caller's budget. */
-  private def retryCreate(
-    deadlineNanos: Long,
-    failure: SQLException,
-  ): IO[SQLException, PooledConnection] =
-    Clock.nanoTime.flatMap { now =>
-      val remaining = deadlineNanos - now
-      if (remaining <= 0L) ZIO.fail(failure)
-      else
-        ZIO.sleep(Duration.fromNanos(math.min(remaining, ConnectionPoolLive.RetryDelayNanos))) *>
-          acquireLoop(deadlineNanos)
-    }
-
-  private def budget(deadlineNanos: Long): IO[SQLException, Duration] =
-    Clock.nanoTime.flatMap { now =>
-      val remaining = deadlineNanos - now
-      if (remaining <= 0L)
-        ZIO.fail(new PoolTimeoutException(config.poolName, config.connectionTimeout))
-      else ZIO.succeed(Duration.fromNanos(remaining))
-    }
-
-  /** A pooled connection is usable if it is neither broken, retired nor dead. */
-  private def usable(pooled: PooledConnection): UIO[Boolean] =
-    Clock.nanoTime.flatMap { now =>
-      if (pooled.broken || pooled.expiredAt(now)) ZIO.succeed(false)
-      else if (now - pooled.lastReturnedNanos <= bypassWindowNanos) ZIO.succeed(true)
-      else
-        factory.validate(pooled.raw).tap { alive =>
-          ZIO.succeed(pooled.lastValidatedNanos = now).when(alive)
-        }
-    }
-
-  private def markBorrowed(pooled: PooledConnection): UIO[PooledConnection] =
-    if (!config.leakDetectionEnabled) ZIO.succeed(pooled)
-    else
-      Clock.nanoTime.map { now =>
-        pooled.leakReported = false
-        pooled.borrowedAtNanos = now
-        pooled.borrowed = true
-        pooled
-      }
 
   private[pool] def createConnection: IO[SQLException, PooledConnection] =
     for {
@@ -197,6 +243,7 @@ private[pool] final class ConnectionPoolLive(
                     new StatementCache(raw, config.statementCacheSize),
                   )
       pooled    = new PooledConnection(raw, now, lifetime, cache)
+      _        <- ZIO.succeed(recorder.connectionCreated())
       _        <- registry.update(_ + pooled)
     } yield pooled
 
@@ -223,27 +270,27 @@ private[pool] final class ConnectionPoolLive(
 
   private[pool] def checkin(pooled: PooledConnection): UIO[Unit] =
     Clock.nanoTime.flatMap { now =>
-      ZIO.succeed(pooled.borrowed = false) *> {
-        if (pooled.broken || pooled.expiredAt(now)) destroy(pooled)
-        else
-          resetState(pooled).flatMap {
-            case false => destroy(pooled)
-            case true  =>
-              ZIO.succeed(pooled.lastReturnedNanos = now) *> core.offer(pooled).flatMap {
-                case PoolCore.Offered.Pooled    => ZIO.unit
-                case PoolCore.Offered.Discarded => destroy(pooled)
-              }
-          }
+      pooled.borrowed = false
+      if (pooled.broken || pooled.expiredAt(now)) destroy(pooled)
+      else {
+        val wasDirty = pooled.stateDirty
+        pooled.stateDirty = false
+        factory.reset(pooled.raw, wasDirty).flatMap {
+          case false => destroy(pooled)
+          case true  =>
+            pooled.lastReturnedNanos = now
+            core.offer(pooled).flatMap {
+              case PoolCore.Offered.Pooled    => ZIO.unit
+              case PoolCore.Offered.Discarded => destroy(pooled)
+            }
+        }
       }
     }
-
-  private def resetState(pooled: PooledConnection): UIO[Boolean] =
-    factory.reset(pooled.raw, pooled.stateDirty) <* ZIO.succeed(pooled.stateDirty = false)
 
   private[pool] def destroy(pooled: PooledConnection): UIO[Unit] =
     registry.update(_ - pooled) *>
       ZIO.attemptBlocking(pooled.close()).ignore *>
-      core.releaseSlot
+      core.releaseSlot <* ZIO.succeed(recorder.connectionClosed())
 
   private[pool] def maintenanceLoop: UIO[Unit] =
     (ZIO.sleep(config.effectiveMaintenanceInterval) *> maintain).forever
@@ -262,7 +309,7 @@ private[pool] final class ConnectionPoolLive(
     else
       core
         .takeIdleWhere(Int.MaxValue, _.expiredAt(now))
-        .flatMap(ZIO.foreachDiscard(_)(destroy))
+        .flatMap(ZIO.foreachDiscard(_)(retire))
 
   private def retireIdle(now: Long): UIO[Unit] =
     if (!config.idleTimeoutEnabled) ZIO.unit
@@ -273,8 +320,11 @@ private[pool] final class ConnectionPoolLive(
             total - config.effectiveMinimumIdle,
             pooled => pooled.idleSince(now) >= idleTimeoutNanos,
           )
-          .flatMap(ZIO.foreachDiscard(_)(destroy))
+          .flatMap(ZIO.foreachDiscard(_)(retire))
       }
+
+  private def retire(pooled: PooledConnection): UIO[Unit] =
+    ZIO.succeed(recorder.connectionRetired()) *> destroy(pooled)
 
   private def keepalive(now: Long): UIO[Unit] =
     if (!config.keepaliveEnabled) ZIO.unit
@@ -307,7 +357,7 @@ private[pool] final class ConnectionPoolLive(
 
   private def report(now: Long)(pooled: PooledConnection): UIO[Unit] = {
     val heldMillis = (now - pooled.borrowedAtNanos) / 1000000L
-    ZIO.succeed(pooled.leakReported = true) *>
+    ZIO.succeed { pooled.leakReported = true; recorder.leakSuspected() } *>
       ZIO.logWarning(
         s"${config.poolName} - connection ${java.lang.System.identityHashCode(pooled)} " +
           s"has been held for ${heldMillis}ms, which may be a leak",
@@ -357,6 +407,8 @@ private[pool] final class ConnectionPoolLive(
 
 private[pool] object ConnectionPoolLive {
 
+  private[pool] final case class Acquisition(pooled: PooledConnection, waited: Boolean)
+
   private val RetryDelayNanos: Long = 50L * 1000000L
 
   def scoped(config: PoolConfig, hooks: PoolHooks): ZIO[Scope, SQLException, ConnectionPoolLive] =
@@ -369,6 +421,8 @@ private[pool] object ConnectionPoolLive {
       pool      = new ConnectionPoolLive(config, hooks, factory, core, registry, gate, runtime)
       _        <- ZIO.addFinalizer(pool.shutdown)
       _        <- pool.prefill(config.initialSize)
+      _        <- hooks.metrics.install(pool.metrics)
+      _        <- PoolManagement.registered(pool, config, runtime)
       _        <- pool.maintenanceLoop.forkScoped
     } yield pool
 }

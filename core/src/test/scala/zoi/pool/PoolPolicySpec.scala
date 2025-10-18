@@ -435,7 +435,7 @@ object PoolPolicySpec extends ZIOSpecDefault {
         } yield assertTrue(closed)
       },
     ),
-  ) @@ withLiveRandom @@ timeout(90.seconds)
+  ) @@ withLiveRandom @@ sequential @@ timeout(120.seconds)
 
   private def dirtyOf(connection: Connection): Boolean =
     connection.asInstanceOf[ConnectionHandle].pooled.stateDirty

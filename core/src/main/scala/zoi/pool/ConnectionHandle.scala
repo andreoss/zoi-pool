@@ -37,9 +37,9 @@ private[pool] final class ConnectionHandle(
   onFailure: SQLException => Unit,
 ) extends Connection {
 
-  private val opened           = mutable.ArrayBuffer.empty[Statement]
-  @volatile private var closed = false
-  private var released         = false
+  private var opened: mutable.ArrayBuffer[Statement] = null
+  @volatile private var closed                       = false
+  private var released                               = false
 
   private def raw: Connection = {
     if (closed) throw new SQLException("connection is closed", PoolException.ConnectionDoesNotExist)
@@ -54,8 +54,12 @@ private[pool] final class ConnectionHandle(
         throw failure
     }
 
+  /** Most borrows open no statement, so the list is built only if one is. */
   private def track[S <: Statement](statement: S): S = {
-    opened.synchronized { opened += statement }
+    synchronized {
+      if (opened == null) opened = mutable.ArrayBuffer.empty[Statement]
+      opened += statement
+    }
     statement
   }
 
@@ -74,15 +78,16 @@ private[pool] final class ConnectionHandle(
 
   /** Closes what the borrower opened; errors here never mask the borrow. */
   private[pool] def closeTrackedStatements(): Unit = {
-    val statements = opened.synchronized {
-      val snapshot = opened.toList
-      opened.clear()
+    val statements = synchronized {
+      val snapshot = opened
+      opened = null
       snapshot
     }
-    statements.foreach { statement =>
-      try statement.close()
-      catch { case _: SQLException => () }
-    }
+    if (statements != null)
+      statements.foreach { statement =>
+        try statement.close()
+        catch { case _: SQLException => () }
+      }
   }
 
   override def close(): Unit = if (!closed) release(this)

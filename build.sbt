@@ -42,3 +42,23 @@ lazy val core = (project in file("core"))
       "com.h2database" % "h2"       % h2Version  % Test,
     ),
   )
+
+// Performance harness. Its own project so the pools and JDBC drivers it
+// measures against never reach the library's classpath.
+// Run: `sbt "bench/run"`, configured by BENCH_* environment variables.
+lazy val bench = (project in file("bench"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name                     := "zoi-pool-bench",
+    publish / skip           := true,
+    Compile / run / mainClass := Some("zoi.pool.bench.BenchMain"),
+    libraryDependencies ++= Seq(
+      "dev.zio"    %% "zio"                % zioVersion,
+      "com.zaxxer"  % "HikariCP"           % "5.1.0",
+      "com.h2database" % "h2"              % h2Version,
+      "org.postgresql" % "postgresql"      % "42.7.8",
+      "com.mysql"   % "mysql-connector-j"  % "9.1.0",
+      "org.slf4j"   % "slf4j-simple"       % "2.0.16",
+    ),
+  )

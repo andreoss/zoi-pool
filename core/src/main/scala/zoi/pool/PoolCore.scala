@@ -96,7 +96,8 @@ private[pool] final class PoolCore[A](
           case head :: tail => idleRef.set(tail).as(Some(Acquired.Ready(head, waited = false)))
           case Nil          =>
             totalRef.get.flatMap {
-              case total if total < maxSize => totalRef.set(total + 1).as(Some(Acquired.Reserved))
+              case total if total < maxSize =>
+                totalRef.set(total + 1).as(Some(Acquired.Reserved(waited = false)))
               case _                        => ZSTM.succeed(None)
             }
         }
@@ -110,7 +111,8 @@ private[pool] final class PoolCore[A](
           case head :: tail => idleRef.set(tail).as(Acquired.Ready(head, waited = true))
           case Nil          =>
             totalRef.get.flatMap {
-              case total if total < maxSize => totalRef.set(total + 1).as(Acquired.Reserved)
+              case total if total < maxSize =>
+                totalRef.set(total + 1).as(Acquired.Reserved(waited = true))
               case _                        => ZSTM.retry
             }
         }
@@ -144,7 +146,7 @@ private[pool] final class PoolCore[A](
   private def restore(slot: TRef[Option[Acquired[A]]]): UIO[Unit] =
     slot.getAndSet(None).commit.flatMap {
       case Some(Acquired.Ready(resource, _)) => offer(resource).unit
-      case Some(Acquired.Reserved)           => releaseSlot
+      case Some(Acquired.Reserved(_))        => releaseSlot
       case None                              => ZIO.unit
     }
 
@@ -158,7 +160,7 @@ private[pool] object PoolCore {
   /** What an acquire produced: a ready resource, or a slot to fill. */
   sealed trait Acquired[+A]
   object Acquired {
-    case object Reserved                                 extends Acquired[Nothing]
+    final case class Reserved(waited: Boolean)             extends Acquired[Nothing]
     final case class Ready[A](resource: A, waited: Boolean) extends Acquired[A]
   }
 
