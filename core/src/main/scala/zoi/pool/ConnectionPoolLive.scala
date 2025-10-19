@@ -385,8 +385,8 @@ private[pool] final class ConnectionPoolLive(
     }
 
   private[pool] def shutdown: UIO[Unit] =
-    resume *>
-      core.shutdown *>
+    core.shutdown *>
+      resume *>
       core.drainIdle.flatMap(ZIO.foreachDiscard(_)(destroy)) *>
       awaitQuiet *>
       abortRemaining
