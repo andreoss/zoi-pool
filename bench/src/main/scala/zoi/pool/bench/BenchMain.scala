@@ -28,45 +28,71 @@ object BenchMain extends ZIOAppDefault {
       )
     }.unit
 
+  /**
+   * Forks are interleaved across pools rather than run pool by pool, so a noisy
+   * moment on the machine lands on every pool instead of penalising whichever
+   * one happened to be measured at the time.
+   */
   private def measureAll(settings: BenchSettings): Task[List[Measurement]] = {
     val pools     = settings.pools.flatMap(BenchPool.byName)
     val workloads = Workload.selected(settings)
     ZIO
       .foreach(workloads) { workload =>
-        ZIO.foreach(pools)(pool => measure(settings, pool, workload))
+        ZIO
+          .foreach(1 to settings.forks) { _ =>
+            ZIO.foreach(pools)(pool => sample(settings, pool, workload).map(pool.name -> _))
+          }
+          .map(aggregate(settings, workload, pools, _))
       }
       .map(_.flatten)
   }
 
-  private def measure(
+  private def aggregate(
+    settings: BenchSettings,
+    workload: Workload,
+    pools: List[BenchPool],
+    forks: Seq[List[(String, Sample)]],
+  ): List[Measurement] =
+    pools.map { pool =>
+      val samples = forks.flatten.collect { case (name, sample) if name == pool.name => sample }
+      if (settings.mode == "latency")
+        Measurement.latency(
+          settings.database,
+          workload.name,
+          pool.name,
+          samples.flatMap(_.nanos).toArray,
+        )
+      else
+        Measurement.throughput(
+          settings.database,
+          workload.name,
+          pool.name,
+          samples.map(_.opsPerSecond).toList,
+        )
+    }
+
+  private def sample(
     settings: BenchSettings,
     pool: BenchPool,
     workload: Workload,
-  ): Task[Measurement] =
+  ): Task[Sample] =
     ZIO.scoped {
       pool.open(settings).flatMap { borrow =>
         Workload.prepare(borrow) *>
           Workload.repeat(workload, borrow, settings.warmup) *>
-          (if (settings.mode == "latency") latency(settings, pool, workload, borrow)
-           else throughput(settings, pool, workload, borrow))
+          (if (settings.mode == "latency") latency(settings, workload, borrow)
+           else throughput(settings, workload, borrow))
       }
     }
 
   private def throughput(
     settings: BenchSettings,
-    pool: BenchPool,
     workload: Workload,
     borrow: BenchPool.Borrow,
-  ): Task[Measurement] =
+  ): Task[Sample] =
     ZIO
-      .foreach(1 to settings.forks) { _ =>
-        ZIO
-          .foreach(1 to settings.rounds)(_ => timed(workload, borrow, settings.iterations))
-          .map(_.max)
-      }
-      .map(samples =>
-        Measurement.throughput(settings.database, workload.name, pool.name, samples.toList),
-      )
+      .foreach(1 to settings.rounds)(_ => timed(workload, borrow, settings.iterations))
+      .map(rounds => Sample(rounds.max, Nil))
 
   private def timed(workload: Workload, borrow: BenchPool.Borrow, count: Int): Task[Double] =
     for {
@@ -78,20 +104,20 @@ object BenchMain extends ZIOAppDefault {
 
   private def latency(
     settings: BenchSettings,
-    pool: BenchPool,
     workload: Workload,
     borrow: BenchPool.Borrow,
-  ): Task[Measurement] =
+  ): Task[Sample] =
     for {
-      samples <- Ref.make(List.empty[Long])
-      _       <- ZIO.foreachDiscard(1 to settings.iterations) { _ =>
-                   for {
-                     start <- Clock.nanoTime
-                     _     <- workload.run(borrow)
-                     end   <- Clock.nanoTime
-                     _     <- samples.update((end - start) :: _)
-                   } yield ()
-                 }
-      taken   <- samples.get
-    } yield Measurement.latency(settings.database, workload.name, pool.name, taken.toArray)
-}
+      samples  <- Ref.make(List.empty[Long])
+      perFibre  = math.max(1, settings.iterations / workload.fibers)
+      _        <- ZIO.foreachParDiscard(1 to workload.fibers) { _ =>
+                    ZIO.foreachDiscard(1 to perFibre) { _ =>
+                      for {
+                        start <- Clock.nanoTime
+                        _     <- workload.run(borrow)
+                        end   <- Clock.nanoTime
+                        _     <- samples.update((end - start) :: _)
+                      } yield ()
+                    }
+                  }
+      taken    <- samples.get

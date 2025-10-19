@@ -67,3 +67,6 @@ object Measurement {
       sorted(index).toDouble / 1000.0
     }
 }
+
+/** One fork's result for one pool: a rate, or the raw per-op timings. */
+private[bench] final case class Sample(opsPerSecond: Double, nanos: List[Long])

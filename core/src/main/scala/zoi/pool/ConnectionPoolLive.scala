@@ -9,7 +9,7 @@ private[pool] final class ConnectionPoolLive(
   config: PoolConfig,
   hooks: PoolHooks,
   factory: ConnectionFactory,
-  core: PoolCore[PooledConnection],
+  core: HandoffCore[PooledConnection],
   registry: Ref[Set[PooledConnection]],
   suspendGate: Ref[Option[Promise[Nothing, Unit]]],
   runtime: Runtime[Any],
@@ -83,14 +83,14 @@ private[pool] final class ConnectionPoolLive(
       ZIO.fail(new PoolTimeoutException(config.poolName, config.connectionTimeout))
     else
       core.acquire(Duration.fromNanos(remaining)).flatMap {
-        case PoolCore.Acquired.Reserved(waited)      =>
+        case HandoffCore.Acquired.Reserved(waited)      =>
           createConnection
             .onInterrupt(core.releaseSlot)
             .foldZIO(
               failure => core.releaseSlot *> retryCreate(deadlineNanos, failure),
               pooled => borrowed(pooled, waited),
             )
-        case PoolCore.Acquired.Ready(pooled, waited) =>
+        case HandoffCore.Acquired.Ready(pooled, waited) =>
           if (!waited && knownGood(pooled, nowNanos)) borrowed(pooled, waited)
           else recheck(pooled, waited, deadlineNanos)
       }
@@ -280,8 +280,8 @@ private[pool] final class ConnectionPoolLive(
           case true  =>
             pooled.lastReturnedNanos = now
             core.offer(pooled).flatMap {
-              case PoolCore.Offered.Pooled    => ZIO.unit
-              case PoolCore.Offered.Discarded => destroy(pooled)
+              case HandoffCore.Offered.Pooled    => ZIO.unit
+              case HandoffCore.Offered.Discarded => destroy(pooled)
             }
         }
       }
@@ -338,8 +338,8 @@ private[pool] final class ConnectionPoolLive(
       case false => destroy(pooled)
       case true  =>
         ZIO.succeed(pooled.lastValidatedNanos = now) *> core.offer(pooled).flatMap {
-          case PoolCore.Offered.Pooled    => ZIO.unit
-          case PoolCore.Offered.Discarded => destroy(pooled)
+          case HandoffCore.Offered.Pooled    => ZIO.unit
+          case HandoffCore.Offered.Discarded => destroy(pooled)
         }
     }
 
@@ -378,8 +378,8 @@ private[pool] final class ConnectionPoolLive(
           _ => core.releaseSlot,
           pooled =>
             core.offer(pooled).flatMap {
-              case PoolCore.Offered.Pooled    => ZIO.unit
-              case PoolCore.Offered.Discarded => destroy(pooled)
+              case HandoffCore.Offered.Pooled    => ZIO.unit
+              case HandoffCore.Offered.Discarded => destroy(pooled)
             },
         )
     }
@@ -414,7 +414,7 @@ private[pool] object ConnectionPoolLive {
   def scoped(config: PoolConfig, hooks: PoolHooks): ZIO[Scope, SQLException, ConnectionPoolLive] =
     for {
       factory  <- ConnectionFactory.make(config)
-      core     <- PoolCore.make[PooledConnection](config.poolName, config.maximumPoolSize)
+      core     <- HandoffCore.make[PooledConnection](config.poolName, config.maximumPoolSize)
       registry <- Ref.make(Set.empty[PooledConnection])
       gate     <- Ref.make(Option.empty[Promise[Nothing, Unit]])
       runtime  <- ZIO.runtime[Any]
