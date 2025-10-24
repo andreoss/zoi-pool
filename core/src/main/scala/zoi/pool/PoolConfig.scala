@@ -90,6 +90,13 @@ object PoolConfig {
   private[pool] val MinMaintenanceNanos: Long = 100L * 1000000L
   private[pool] val MaxMaintenanceNanos: Long = 30L * 1000000000L
 
+  /** Reads a pool configuration from any ZIO config source. */
+  val config: zio.Config[PoolConfig] = PoolConfigDescriptor.config
+
+  /** The same descriptor under a dotted path, nested one segment at a time. */
+  def configAt(path: String): zio.Config[PoolConfig] =
+    path.split('.').iterator.filter(_.nonEmpty).foldRight(config)((segment, nested) => nested.nested(segment))
+
   /** Builds a config, collecting every violation instead of throwing. */
   def validated(config: => PoolConfig): Either[Chunk[PoolConfigError], PoolConfig] =
     try Right(config)

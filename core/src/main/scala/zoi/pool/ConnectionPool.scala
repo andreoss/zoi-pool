@@ -58,6 +58,13 @@ object ConnectionPool {
   ): ZLayer[Any, SQLException, DataSource] =
     ZLayer.scoped(scoped(config, hooks).map(_.dataSource))
 
+  /** Builds a pool from the application's configuration, under `path`. */
+  def layerFromConfig(
+    path: String = "zoi.pool",
+    hooks: PoolHooks = PoolHooks.default,
+  ): ZLayer[Any, Throwable, ConnectionPool] =
+    ZLayer.scoped(ZIO.config(PoolConfig.configAt(path)).flatMap(scoped(_, hooks)))
+
   /** Borrows a connection from the pool in the environment. */
   def connection: ZIO[ConnectionPool with Scope, SQLException, Connection] =
     ZIO.serviceWithZIO[ConnectionPool](_.connection)
