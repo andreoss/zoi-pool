@@ -35,3 +35,30 @@ object H2Backend extends JdbcBackend {
   def freshUrl: UIO[String] =
     uniqueSuffix.map(id => s"jdbc:h2:mem:zoi$id;DB_CLOSE_DELAY=-1")
 }
+
+/** Derby speaks a different dialect, which is the point of keeping it. */
+object DerbyBackend extends JdbcBackend {
+  val name = "Derby"
+
+  def freshUrl: UIO[String] =
+    uniqueSuffix.map(id => s"jdbc:derby:memory:zoi$id;create=true")
+
+  override def selectOne: String = "SELECT 1 FROM SYSIBM.SYSDUMMY1"
+
+  override def createTableSql(table: String): String =
+    s"CREATE TABLE $table (id INT PRIMARY KEY, name VARCHAR(64))"
+}
+
+/** SQLite is the awkward one: one writer, and state it refuses to change. */
+object SQLiteBackend extends JdbcBackend {
+  val name = "SQLite"
+
+  def freshUrl: UIO[String] =
+    uniqueSuffix.map(id => s"jdbc:sqlite:file:zoi$id?mode=memory&cache=shared")
+
+  override def supportsReadOnly: Boolean = false
+
+  override def supportsCatalog: Boolean = false
+
+  override def supportsSchema: Boolean = false
+}

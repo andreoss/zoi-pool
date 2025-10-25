@@ -1,5 +1,7 @@
 val zioVersion      = "2.1.22"
 val h2Version       = "2.3.232"
+val derbyVersion    = "10.17.1.0"
+val sqliteVersion   = "3.47.1.0"
 val scala3Version   = "3.3.7"
 val scala213Version = "2.13.17"
 
@@ -39,7 +41,10 @@ lazy val core = (project in file("core"))
       "dev.zio" %% "zio"          % zioVersion,
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
-      "com.h2database" % "h2"       % h2Version  % Test,
+      "com.h2database"   % "h2"          % h2Version     % Test,
+      "org.apache.derby" % "derby"       % derbyVersion  % Test,
+      "org.apache.derby" % "derbytools"  % derbyVersion  % Test,
+      "org.xerial"       % "sqlite-jdbc" % sqliteVersion % Test,
     ),
   )
 
