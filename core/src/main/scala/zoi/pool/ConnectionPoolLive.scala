@@ -165,14 +165,24 @@ private[pool] final class ConnectionPoolLive(
 
   def metrics: UIO[PoolMetricsSnapshot] = state.map(recorder.counters.withState)
 
-  /** Drops a connection the caller knows is bad; it is closed when returned. */
+  /**
+   * Drops a borrowed connection the caller knows is bad. Accepts the connection
+   * as handed out, or as another layer wrapped it, so an adapter does not have
+   * to keep its own map back to the pool.
+   */
   def invalidate(connection: Connection): UIO[Unit] =
-    ZIO.succeed {
-      connection match {
-        case handle: ConnectionHandle if handle.active => handle.pooled.broken = true
-        case _                                         => ()
-      }
+    connection match {
+      case handle: ConnectionHandle if handle.active =>
+        ZIO.succeed(handle.pooled.broken = true)
+      case _: ConnectionHandle                       => ZIO.unit
+      case other                                     =>
+        val physical = unwrapPhysical(other)
+        registry.get.map(_.foreach(pooled => if (pooled.raw eq physical) pooled.broken = true))
     }
+
+  private def unwrapPhysical(connection: Connection): Connection =
+    try connection.unwrap(classOf[Connection])
+    catch { case _: SQLException => connection }
 
   /** Stops handing out connections; borrowers already holding one keep it. */
   def suspend: UIO[Unit] =
