@@ -62,3 +62,32 @@ object SQLiteBackend extends JdbcBackend {
 
   override def supportsSchema: Boolean = false
 }
+
+/**
+ * A database that runs in a container, addressed through Testcontainers' own
+ * JDBC driver so the container is started by the URL and nothing else.
+ *
+ * One container serves the whole suite: the tests isolate themselves by what
+ * they do, not by which database they do it in.
+ */
+abstract class ContainerBackend(image: String) extends JdbcBackend {
+
+  private val url = s"jdbc:tc:$image:///zoi?TC_DAEMON=true"
+
+  def freshUrl: UIO[String] = ZIO.succeed(url)
+}
+
+object PostgresBackend extends ContainerBackend("postgresql:16-alpine") {
+  val name = "PostgreSQL"
+}
+
+object MySqlBackend extends ContainerBackend("mysql:8.4") {
+  val name = "MySQL"
+
+  override def createTableSql(table: String): String =
+    s"CREATE TABLE $table (id INT PRIMARY KEY, name VARCHAR(64))"
+}
+
+object MariaDbBackend extends ContainerBackend("mariadb:11") {
+  val name = "MariaDB"
+}

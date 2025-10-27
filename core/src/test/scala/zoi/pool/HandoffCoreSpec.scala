@@ -20,6 +20,9 @@ object HandoffCoreSpec extends ZIOSpecDefault {
       "stm"       -> ((name, size) => StmHandoffCore.make[Int](name, size)),
     )
 
+  private def awaitWaiting(core: HandoffCore[Int], count: Int): UIO[Int] =
+    (ZIO.sleep(2.millis) *> core.waitingCount).repeatUntil(_ >= count)
+
   private def take(core: HandoffCore[Int], token: Int): UIO[Int] =
     core.acquire(5.seconds).orDie.flatMap {
       case Acquired.Ready(value, _) => ZIO.succeed(value)
@@ -70,8 +73,8 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               core    <- make("t", 1)
               _       <- core.acquire(5.seconds)
               parked  <- core.acquire(5.seconds).fork
-              _       <- ZIO.sleep(40.millis)
-              waiting <- core.waitingCount
+              waiting <- awaitWaiting(core, 1)
+
               _       <- core.offer(9)
               got     <- parked.join
             } yield assertTrue(waiting == 1, got == Acquired.Ready(9, waited = true))
@@ -83,7 +86,7 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               core   <- make("t", 1)
               _      <- core.acquire(5.seconds)
               parked <- core.acquire(5.seconds).fork
-              _      <- ZIO.sleep(40.millis)
+              _      <- awaitWaiting(core, 1)
               _      <- core.releaseSlot
               got    <- parked.join
             } yield assertTrue(got == Acquired.Reserved(waited = true))
@@ -108,12 +111,12 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               _       <- core.acquire(5.seconds)
               entered <- Promise.make[Nothing, Unit]
               parked  <- (entered.succeed(()) *> core.acquire(5.seconds)).fork
-              _       <- entered.await *> ZIO.sleep(40.millis)
+              _       <- entered.await *> awaitWaiting(core, 1)
               _       <- parked.interrupt
               _       <- core.offer(4)
               _       <- ZIO.sleep(40.millis)
-              idle    <- core.idleCount
               waiting <- core.waitingCount
+              idle    <- core.idleCount
             } yield assertTrue(idle == 1, waiting == 0)
           }
         },
@@ -123,7 +126,7 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               core    <- make("t", 1)
               _       <- core.acquire(5.seconds)
               parked  <- ZIO.foreachPar(1 to 4)(_ => core.acquire(5.seconds).either).fork
-              _       <- ZIO.sleep(60.millis)
+              _       <- awaitWaiting(core, 4)
               _       <- core.shutdown
               results <- parked.join
             } yield assertTrue(results.forall(_.isLeft))

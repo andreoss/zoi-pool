@@ -3,8 +3,13 @@ val h2Version       = "2.3.232"
 val derbyVersion    = "10.17.1.0"
 val sqliteVersion   = "3.47.1.0"
 val zioJdbcVersion  = "0.1.2"
-val quillVersion    = "4.8.6"
+val quillVersion    = "4.8.5"
 val doobieVersion   = "1.0.0-RC10"
+val testcontainersVersion = "1.21.3"
+val postgresVersion = "42.7.8"
+val mysqlVersion    = "9.1.0"
+val mariadbVersion  = "3.5.1"
+val slf4jVersion    = "2.0.16"
 val scala3Version   = "3.3.7"
 val scala213Version = "2.13.17"
 
@@ -30,7 +35,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, interop)
+  .aggregate(core, interop, consumers, examples)
   .settings(
     name           := "zoi-pool-root",
     publish / skip := true,
@@ -48,6 +53,13 @@ lazy val core = (project in file("core"))
       "org.apache.derby" % "derby"       % derbyVersion  % Test,
       "org.apache.derby" % "derbytools"  % derbyVersion  % Test,
       "org.xerial"       % "sqlite-jdbc" % sqliteVersion % Test,
+      "org.testcontainers" % "postgresql" % testcontainersVersion % Test,
+      "org.testcontainers" % "mysql"      % testcontainersVersion % Test,
+      "org.testcontainers" % "mariadb"    % testcontainersVersion % Test,
+      "org.postgresql"   % "postgresql"  % postgresVersion % Test,
+      "com.mysql"        % "mysql-connector-j" % mysqlVersion % Test,
+      "org.mariadb.jdbc" % "mariadb-java-client" % mariadbVersion % Test,
+      "org.slf4j"        % "slf4j-simple" % slf4jVersion % Test,
     ),
   )
 
@@ -99,5 +111,17 @@ lazy val consumers = (project in file("consumers"))
       "dev.zio"        %% "zio-test"       % zioVersion    % Test,
       "dev.zio"        %% "zio-test-sbt"   % zioVersion    % Test,
       "com.h2database"  % "h2"             % h2Version     % Test,
+    ),
+  )
+
+// Runnable examples. Built in CI so they cannot rot, never published.
+lazy val examples = (project in file("examples"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name           := "zoi-pool-examples",
+    publish / skip := true,
+    libraryDependencies ++= Seq(
+      "com.h2database" % "h2" % h2Version,
     ),
   )

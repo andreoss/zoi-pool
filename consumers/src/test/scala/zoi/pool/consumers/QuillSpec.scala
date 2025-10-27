@@ -3,7 +3,6 @@ package zoi.pool.consumers
 import javax.sql.DataSource
 
 import io.getquill._
-import io.getquill.autoQuote
 import io.getquill.jdbczio.Quill
 import zio.test.TestAspect._
 import zio.test._

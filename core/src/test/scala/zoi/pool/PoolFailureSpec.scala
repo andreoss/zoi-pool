@@ -172,15 +172,30 @@ object PoolFailureSpec extends ZIOSpecDefault {
                    }
         } yield assertTrue(state.total == 1, state.idle == 1)
       },
-      test("invalidating something the pool never handed out is ignored") {
+      test("a connection another layer wrapped still reaches the pool") {
         for {
           url   <- backend.freshUrl
           state <- ZIO.scoped {
                      pool(backend.config(url)).flatMap { p =>
-                       ZIO.scoped(p.connection.flatMap(c => p.invalidate(c.unwrap(classOf[java.sql.Connection])))) *>
-                         p.state
+                       ZIO.scoped(
+                         p.connection.flatMap(c =>
+                           p.invalidate(c.unwrap(classOf[java.sql.Connection])),
+                         ),
+                       ) *> p.state
                      }
                    }
+        } yield assertTrue(state.total == 0, state.idle == 0)
+      },
+      test("a connection the pool never handed out is ignored") {
+        for {
+          url     <- backend.freshUrl
+          foreign <- ZIO.attemptBlocking(java.sql.DriverManager.getConnection(url))
+          state   <- ZIO.scoped {
+                       pool(backend.config(url)).flatMap { p =>
+                         ZIO.scoped(p.connection) *> p.invalidate(foreign) *> p.state
+                       }
+                     }
+          _       <- ZIO.attemptBlocking(foreign.close())
         } yield assertTrue(state.total == 1, state.idle == 1)
       },
     ),

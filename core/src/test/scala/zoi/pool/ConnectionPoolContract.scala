@@ -234,7 +234,7 @@ object ConnectionPoolContract {
                      }
         } yield assert(outcome)(isLeft(isSubtype[java.sql.SQLFeatureNotSupportedException](anything)))
       },
-    ) @@ withLiveClock @@ withLiveRandom @@ timeout(120.seconds)
+    ) @@ withLiveClock @@ withLiveRandom @@ timeout(5.minutes)
 }
 
 /** Runs the contract suite against one backend. */
