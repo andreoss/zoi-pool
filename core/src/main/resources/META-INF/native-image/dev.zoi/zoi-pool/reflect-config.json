@@ -1,0 +1,13 @@
+[
+  {
+    "name": "zoi.pool.PoolMXBean",
+    "allDeclaredMethods": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "zoi.pool.PoolManagement",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "queryAllDeclaredMethods": true
+  }
+]

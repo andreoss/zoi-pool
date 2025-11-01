@@ -121,3 +121,5 @@ object BenchMain extends ZIOAppDefault {
                     }
                   }
       taken    <- samples.get
+    } yield Sample(0.0, taken)
+}

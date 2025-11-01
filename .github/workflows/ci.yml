@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Formatting
+        run: sbt scalafmtCheckAll scalafmtSbtCheck
+
+      - name: Imports
+        run: sbt "scalafixAll --check"
+
+      - name: Cross-build and test
+        run: sbt +test
+
+      - name: Binary compatibility
+        run: sbt +mimaReportBinaryIssues
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Databases in containers
+        env:
+          USE_CONTAINERS: "1"
+        run: sbt core/test
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Coverage gate
+        run: sbt coverage core/test interop/test coverageAggregate
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Regression gate
+        env:
+          BENCH_FORKS: "3"
+          BENCH_OUTPUT: table
+          BENCH_BASELINE: bench/baseline-h2.csv
+        run: sbt "bench/run"

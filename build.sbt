@@ -20,6 +20,11 @@ inThisBuild(
     scalaVersion       := scala3Version,
     crossScalaVersions := List(scala213Version, scala3Version),
     semanticdbEnabled  := false,
+    versionScheme      := Some("early-semver"),
+    homepage           := Some(url("https://github.com/zoi-pool/zoi-pool")),
+    developers         := List(
+      Developer("zoi-pool", "zoi-pool", "", url("https://github.com/zoi-pool")),
+    ),
     semanticdbVersion  := scalafixSemanticdb.revision,
     licenses           := List("LGPL-3.0" -> url("https://www.gnu.org/licenses/lgpl-3.0.html")),
   ),
@@ -32,8 +37,18 @@ val commonSettings = Seq(
     case _            => Seq("-Xsource:3", "-Wconf:cat=scala3-migration:s")
   }),
   testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+  Test / javaOptions += "-Dderby.stream.error.file=target/derby.log",
 )
 
+// Published modules keep binary compatibility within a release line, and hold
+// the coverage gate the process asks for.
+val releaseSettings = Seq(
+  coverageMinimumStmtTotal := 85,
+  coverageMinimumBranchTotal := 70,
+  coverageFailOnMinimum := true,
+  // Set to the previous release once one exists; empty means nothing to check.
+  mimaPreviousArtifacts := Set.empty,
+)
 lazy val root = (project in file("."))
   .aggregate(core, interop, consumers, examples)
   .settings(
@@ -42,6 +57,7 @@ lazy val root = (project in file("."))
   )
 
 lazy val core = (project in file("core"))
+  .settings(releaseSettings)
   .settings(commonSettings)
   .settings(
     name := "zoi-pool",
@@ -85,6 +101,7 @@ lazy val bench = (project in file("bench"))
 
 // Adapters for consumers that take something other than a DataSource.
 lazy val interop = (project in file("interop"))
+  .settings(releaseSettings)
   .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
@@ -125,3 +142,4 @@ lazy val examples = (project in file("examples"))
       "com.h2database" % "h2" % h2Version,
     ),
   )
+

@@ -22,6 +22,7 @@ object QuillSpec extends ZIOSpecDefault {
 
   private def createTable(url: String) =
     ZIO.attemptBlocking {
+      val _          = Class.forName("org.h2.Driver")
       val connection = java.sql.DriverManager.getConnection(url)
       try {
         val statement = connection.createStatement()

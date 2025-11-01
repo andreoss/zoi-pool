@@ -189,7 +189,10 @@ object PoolFailureSpec extends ZIOSpecDefault {
       test("a connection the pool never handed out is ignored") {
         for {
           url     <- backend.freshUrl
-          foreign <- ZIO.attemptBlocking(java.sql.DriverManager.getConnection(url))
+          foreign <- ZIO.attemptBlocking {
+                       val _ = Class.forName("org.h2.Driver")
+                       java.sql.DriverManager.getConnection(url)
+                     }
           state   <- ZIO.scoped {
                        pool(backend.config(url)).flatMap { p =>
                          ZIO.scoped(p.connection) *> p.invalidate(foreign) *> p.state

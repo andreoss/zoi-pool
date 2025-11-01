@@ -34,11 +34,17 @@ object PoolSoakSpec extends ZIOSpecDefault {
                         }
                       }
           broken   <- failures.get
-          state    <- p.state
+          state    <- settled(p)
           metrics  <- p.metrics
         } yield (broken, state, metrics)
       }
     }
+
+  /** Waits for maintenance to let go of whatever it was checking. */
+  private def settled(p: ConnectionPoolLive): ZIO[Any, Throwable, PoolState] =
+    (ZIO.sleep(5.millis) *> p.state)
+      .repeatUntil(state => state.idle == state.total && state.waiting == 0)
+      .timeoutFail(new IllegalStateException("pool never settled"))(20.seconds)
 
   private def borrow(p: ConnectionPoolLive): ZIO[Any, Throwable, Unit] =
     ZIO.scoped(
@@ -121,7 +127,7 @@ object PoolSoakSpec extends ZIOSpecDefault {
                                   )
                        _       <- p.resume
                        _       <- load.join
-                       state   <- p.state
+                       state   <- settled(p)
                      } yield state
                    }
                  }
