@@ -17,7 +17,8 @@ object BenchMain extends ZIOAppDefault {
       _        <- Console.printLine(Report.render(settings, results))
       failures  = Report.regressions(settings, results)
       _        <- ZIO.foreachDiscard(failures)(line => Console.printLineError(s"REGRESSION $line"))
-    } yield if (failures.isEmpty) ExitCode.success else ExitCode.failure
+      _        <- ZIO.when(failures.nonEmpty)(exit(ExitCode.failure))
+    } yield ExitCode.success
 
   private def announce(settings: BenchSettings): Task[Unit] =
     ZIO.when(settings.output != "csv") {

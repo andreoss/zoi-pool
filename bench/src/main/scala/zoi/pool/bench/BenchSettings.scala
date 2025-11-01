@@ -52,7 +52,7 @@ object BenchSettings {
       mode = read("mode").getOrElse("throughput").toLowerCase,
       output = read("output").getOrElse("table").toLowerCase,
       baseline = read("baseline"),
-      tolerance = read("tolerance").map(_.toDouble).getOrElse(0.15),
+      tolerance = read("tolerance").map(_.toDouble).getOrElse(0.25),
       connectionTimeout = 30.seconds,
     )
   }

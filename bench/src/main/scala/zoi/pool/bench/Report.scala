@@ -50,7 +50,11 @@ object Report {
     (header :: rows).mkString("\n")
   }
 
-  /** A run regresses when a pool's gap to the incumbent grew past tolerance. */
+  /**
+   * A run regresses when the library's gap to the incumbent grew past the
+   * tolerance. Only the library is watched: the no-pool column is a reference
+   * point, not something to hold steady.
+   */
   def regressions(
     settings: BenchSettings,
     results: List[Measurement],
@@ -72,13 +76,15 @@ object Report {
       .groupBy(_.workload)
       .flatMap { case (workload, row) =>
         row.find(_.pool == "hikari").map(_.opsPerSecond).filter(_ > 0.0).toList.flatMap { reference =>
-          row.filterNot(_.pool == "hikari").filter(_.opsPerSecond > 0.0).map { measurement =>
+          row.filter(_.pool == "zoi").filter(_.opsPerSecond > 0.0).map { measurement =>
             s"$workload/${measurement.pool}" -> reference / measurement.opsPerSecond
           }
         }
       }
 
   private def read(path: String): Map[String, Double] = {
+    val file = new java.io.File(path)
+    if (!file.isFile) throw new IllegalArgumentException(s"no baseline at $path")
     val source = Source.fromFile(path)
     try {
       val rows = source.getLines().drop(1).toList.map(_.split(",").toList)

@@ -89,6 +89,9 @@ lazy val bench = (project in file("bench"))
     name                     := "zoi-pool-bench",
     publish / skip           := true,
     Compile / run / mainClass := Some("zoi.pool.bench.BenchMain"),
+    run / fork               := true,
+    run / connectInput       := true,
+    run / baseDirectory      := (LocalRootProject / baseDirectory).value,
     libraryDependencies ++= Seq(
       "dev.zio"    %% "zio"                % zioVersion,
       "com.zaxxer"  % "HikariCP"           % "5.1.0",
