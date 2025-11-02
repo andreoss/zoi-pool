@@ -33,7 +33,7 @@ object H2Backend extends JdbcBackend {
   val name = "H2"
 
   def freshUrl: UIO[String] =
-    uniqueSuffix.map(id => s"jdbc:h2:mem:zoi$id;DB_CLOSE_DELAY=-1")
+    uniqueSuffix.map(id => s"jdbc:h2:mem:zoi$id;DB_CLOSE_DELAY=10")
 }
 
 /** Derby speaks a different dialect, which is the point of keeping it. */

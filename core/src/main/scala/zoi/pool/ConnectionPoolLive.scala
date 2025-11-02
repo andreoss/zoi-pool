@@ -385,7 +385,7 @@ private[pool] final class ConnectionPoolLive(
       case false => ZIO.unit
       case true  =>
         createConnection.foldZIO(
-          _ => core.releaseSlot,
+          failure => core.releaseSlot *> reportPrefillFailure(failure),
           pooled =>
             core.offer(pooled).flatMap {
               case HandoffCore.Offered.Pooled    => ZIO.unit
@@ -393,6 +393,14 @@ private[pool] final class ConnectionPoolLive(
             },
         )
     }
+
+  /** A pool that cannot reach its minimum says so; it does not fail silently. */
+  private def reportPrefillFailure(failure: SQLException): UIO[Unit] =
+    ZIO.logWarning(
+      s"${config.poolName} - could not open a connection to fill the pool: " +
+        s"${failure.getClass.getSimpleName}: ${failure.getMessage}" +
+        Option(failure.getCause).fold("")(cause => s" (${cause.getMessage})"),
+    )
 
   private[pool] def shutdown: UIO[Unit] =
     core.shutdown *>
