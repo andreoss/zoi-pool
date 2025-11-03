@@ -14,13 +14,13 @@ import HandoffCore.{Acquired, Offered}
  * It is the model the shipped core is checked against: slower, but obviously
  * correct, which is what a reference implementation is for.
  */
-private[pool] final class StmHandoffCore[A](
-  poolName: String,
-  maxSize: Int,
-  idleRef: TRef[List[A]],
-  totalRef: TRef[Int],
-  waitingRef: TRef[Int],
-  closedRef: TRef[Boolean],
+final private[pool] class StmHandoffCore[A](
+    poolName: String,
+    maxSize: Int,
+    idleRef: TRef[List[A]],
+    totalRef: TRef[Int],
+    waitingRef: TRef[Int],
+    closedRef: TRef[Boolean],
 ) extends HandoffCore[A] {
 
   def acquire(timeout: Duration): IO[SQLException, Acquired[A]] =
@@ -34,8 +34,8 @@ private[pool] final class StmHandoffCore[A](
       for {
         closed <- closedRef.get
         total  <- totalRef.get
-        can     = !closed && total < maxSize
-        _      <- ZSTM.when(can)(totalRef.set(total + 1))
+        can = !closed && total < maxSize
+        _ <- ZSTM.when(can)(totalRef.set(total + 1))
       } yield can
     }.uninterruptible
 
@@ -154,9 +154,9 @@ private[pool] object StmHandoffCore {
     }
 
   private[pool] def pickOldest[A](
-    idle: List[A],
-    limit: Int,
-    select: A => Boolean,
+      idle: List[A],
+      limit: Int,
+      select: A => Boolean,
   ): (Chunk[A], List[A]) = {
     val builder = Chunk.newBuilder[A]
     var budget  = limit

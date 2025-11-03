@@ -14,7 +14,8 @@ import HandoffCore.{Acquired, Offered}
  */
 object HandoffCoreSpec extends ZIOSpecDefault {
 
-  private val implementations: List[(String, (String, Int) => ZIO[Scope, Nothing, HandoffCore[Int]])] =
+  private val implementations
+      : List[(String, (String, Int) => ZIO[Scope, Nothing, HandoffCore[Int]])] =
     List(
       "lock-free" -> ((name, size) => LockFreeHandoffCore.make[Int](name, size)),
       "stm"       -> ((name, size) => StmHandoffCore.make[Int](name, size)),
@@ -54,16 +55,16 @@ object HandoffCoreSpec extends ZIOSpecDefault {
         test("the cap is never exceeded, however many acquirers arrive at once") {
           ZIO.scoped {
             for {
-              core   <- make("t", 3)
-              peak   <- Ref.make(0)
-              _      <- ZIO.foreachParDiscard(1 to 40) { index =>
-                          take(core, index).flatMap { token =>
-                            core.totalCount.flatMap(t => peak.update(_ max t)) *>
-                              core.offer(token)
-                          }
-                        }
-              worst  <- peak.get
-              total  <- core.totalCount
+              core  <- make("t", 3)
+              peak  <- Ref.make(0)
+              _     <- ZIO.foreachParDiscard(1 to 40) { index =>
+                take(core, index).flatMap { token =>
+                  core.totalCount.flatMap(t => peak.update(_ max t)) *>
+                    core.offer(token)
+                }
+              }
+              worst <- peak.get
+              total <- core.totalCount
             } yield assertTrue(worst <= 3, total <= 3, total > 0)
           }
         },
@@ -75,8 +76,8 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               parked  <- core.acquire(5.seconds).fork
               waiting <- awaitWaiting(core, 1)
 
-              _       <- core.offer(9)
-              got     <- parked.join
+              _   <- core.offer(9)
+              got <- parked.join
             } yield assertTrue(waiting == 1, got == Acquired.Ready(9, waited = true))
           }
         },
@@ -175,10 +176,10 @@ object HandoffCoreSpec extends ZIOSpecDefault {
               core  <- make("t", 4)
               seen  <- Ref.make(Set.empty[Int])
               _     <- ZIO.foreachParDiscard(1 to 200) { index =>
-                         take(core, 1000 + index).flatMap { token =>
-                           seen.update(_ + token) *> core.offer(token)
-                         }
-                       }
+                take(core, 1000 + index).flatMap { token =>
+                  seen.update(_ + token) *> core.offer(token)
+                }
+              }
               total <- core.totalCount
               idle  <- core.idleCount
             } yield assertTrue(total <= 4, total >= 1, idle == total)

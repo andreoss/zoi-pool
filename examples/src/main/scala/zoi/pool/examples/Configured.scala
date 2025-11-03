@@ -20,9 +20,8 @@ object Configured extends ZIOAppDefault {
     ZIO.withConfigProvider(settings) {
       ZIO
         .serviceWithZIO[ConnectionPool](pool =>
-          ZIO.scoped(pool.connection) *> pool.state.flatMap(state =>
-            Console.printLine(s"configured pool holds ${state.total}"),
-          ),
+          ZIO.scoped(pool.connection) *> pool.state
+            .flatMap(state => Console.printLine(s"configured pool holds ${state.total}")),
         )
         .provide(ConnectionPool.layerFromConfig())
     }

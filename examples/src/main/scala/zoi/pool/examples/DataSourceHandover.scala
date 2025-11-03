@@ -27,9 +27,11 @@ object DataSourceHandover extends ZIOAppDefault {
   override def run =
     ZIO
       .serviceWithZIO[DataSource](source =>
-        ZIO.attemptBlocking(countTables(source)).flatMap(count =>
-          Console.printLine(s"$count tables, through a pool the library never heard of"),
-        ),
+        ZIO
+          .attemptBlocking(countTables(source))
+          .flatMap(count =>
+            Console.printLine(s"$count tables, through a pool the library never heard of"),
+          ),
       )
       .provide(
         ConnectionPool.dataSourceLayer(

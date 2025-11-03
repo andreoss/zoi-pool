@@ -10,7 +10,7 @@ import scala.collection.mutable
  * A connection is used by one borrower at a time, so the cache needs no
  * concurrency beyond the monitor that guards its own map.
  */
-private[pool] final class StatementCache(connection: Connection, capacity: Int) {
+final private[pool] class StatementCache(connection: Connection, capacity: Int) {
 
   private val entries = mutable.LinkedHashMap.empty[String, PreparedStatement]
 

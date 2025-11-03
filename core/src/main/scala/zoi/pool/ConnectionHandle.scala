@@ -31,10 +31,10 @@ import scala.collection.mutable
  * Statements are handed out unwrapped, so a query costs exactly what it costs
  * without a pool.
  */
-private[pool] final class ConnectionHandle(
-  private[pool] val pooled: PooledConnection,
-  release: ConnectionHandle => Unit,
-  onFailure: SQLException => Unit,
+final private[pool] class ConnectionHandle(
+    private[pool] val pooled: PooledConnection,
+    release: ConnectionHandle => Unit,
+    onFailure: SQLException => Unit,
 ) extends Connection {
 
   private var opened: mutable.ArrayBuffer[Statement] = null
@@ -102,9 +102,9 @@ private[pool] final class ConnectionHandle(
     track(guarded(raw.createStatement(resultSetType, resultSetConcurrency)))
 
   override def createStatement(
-    resultSetType: Int,
-    resultSetConcurrency: Int,
-    resultSetHoldability: Int,
+      resultSetType: Int,
+      resultSetConcurrency: Int,
+      resultSetHoldability: Int,
   ): Statement =
     track(guarded(raw.createStatement(resultSetType, resultSetConcurrency, resultSetHoldability)))
 
@@ -125,17 +125,17 @@ private[pool] final class ConnectionHandle(
     track(guarded(raw.prepareStatement(sql, columnNames)))
 
   override def prepareStatement(
-    sql: String,
-    resultSetType: Int,
-    resultSetConcurrency: Int,
+      sql: String,
+      resultSetType: Int,
+      resultSetConcurrency: Int,
   ): PreparedStatement =
     track(guarded(raw.prepareStatement(sql, resultSetType, resultSetConcurrency)))
 
   override def prepareStatement(
-    sql: String,
-    resultSetType: Int,
-    resultSetConcurrency: Int,
-    resultSetHoldability: Int,
+      sql: String,
+      resultSetType: Int,
+      resultSetConcurrency: Int,
+      resultSetHoldability: Int,
   ): PreparedStatement =
     track(
       guarded(raw.prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability)),
@@ -144,16 +144,16 @@ private[pool] final class ConnectionHandle(
   override def prepareCall(sql: String): CallableStatement = track(guarded(raw.prepareCall(sql)))
 
   override def prepareCall(
-    sql: String,
-    resultSetType: Int,
-    resultSetConcurrency: Int,
+      sql: String,
+      resultSetType: Int,
+      resultSetConcurrency: Int,
   ): CallableStatement = track(guarded(raw.prepareCall(sql, resultSetType, resultSetConcurrency)))
 
   override def prepareCall(
-    sql: String,
-    resultSetType: Int,
-    resultSetConcurrency: Int,
-    resultSetHoldability: Int,
+      sql: String,
+      resultSetType: Int,
+      resultSetConcurrency: Int,
+      resultSetHoldability: Int,
   ): CallableStatement =
     track(guarded(raw.prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability)))
 
@@ -217,7 +217,9 @@ private[pool] final class ConnectionHandle(
 
   override def setSavepoint(name: String): Savepoint = guarded(raw.setSavepoint(name))
 
-  override def releaseSavepoint(savepoint: Savepoint): Unit = guarded(raw.releaseSavepoint(savepoint))
+  override def releaseSavepoint(savepoint: Savepoint): Unit = guarded(
+    raw.releaseSavepoint(savepoint),
+  )
 
   override def createClob(): Clob = raw.createClob()
 
@@ -268,9 +270,9 @@ private[pool] final class ConnectionHandle(
   override def endRequest(): Unit = raw.endRequest()
 
   override def setShardingKeyIfValid(
-    shardingKey: ShardingKey,
-    superShardingKey: ShardingKey,
-    timeout: Int,
+      shardingKey: ShardingKey,
+      superShardingKey: ShardingKey,
+      timeout: Int,
   ): Boolean = raw.setShardingKeyIfValid(shardingKey, superShardingKey, timeout)
 
   override def setShardingKeyIfValid(shardingKey: ShardingKey, timeout: Int): Boolean =

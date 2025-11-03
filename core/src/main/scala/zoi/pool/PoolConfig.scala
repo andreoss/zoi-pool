@@ -14,40 +14,40 @@ import zio.{Chunk, Duration, durationInt}
  * one produced by `copy`.
  */
 final case class PoolConfig(
-  url: String,
-  username: Option[String] = None,
-  password: Option[String] = None,
-  driverClassName: Option[String] = None,
-  connectionProperties: Map[String, String] = Map.empty,
-  poolName: String = PoolConfig.DefaultPoolName,
-  maximumPoolSize: Int = 10,
-  minimumIdle: Option[Int] = None,
-  initialSize: Int = 0,
-  connectionTimeout: Duration = 30.seconds,
-  validationTimeout: Duration = 5.seconds,
-  idleTimeout: Duration = 10.minutes,
-  maxLifetime: Duration = 30.minutes,
-  keepaliveTime: Duration = Duration.Zero,
-  leakDetectionThreshold: Duration = Duration.Zero,
-  aliveBypassWindow: Duration = 500.millis,
-  shutdownTimeout: Duration = 30.seconds,
-  maintenanceInterval: Option[Duration] = None,
-  autoCommit: Boolean = true,
-  transactionIsolation: Option[TransactionIsolation] = None,
-  readOnly: Boolean = false,
-  catalog: Option[String] = None,
-  schema: Option[String] = None,
-  connectionInitSql: Option[String] = None,
-  connectionTestQuery: Option[String] = None,
-  statementCacheSize: Int = 0,
-  failureTracking: Boolean = true,
-  jmxEnabled: Boolean = false,
-  jmxDomain: String = PoolConfig.DefaultJmxDomain,
+    url: String,
+    username: Option[String] = None,
+    password: Option[String] = None,
+    driverClassName: Option[String] = None,
+    connectionProperties: Map[String, String] = Map.empty,
+    poolName: String = PoolConfig.DefaultPoolName,
+    maximumPoolSize: Int = 10,
+    minimumIdle: Option[Int] = None,
+    initialSize: Int = 0,
+    connectionTimeout: Duration = 30.seconds,
+    validationTimeout: Duration = 5.seconds,
+    idleTimeout: Duration = 10.minutes,
+    maxLifetime: Duration = 30.minutes,
+    keepaliveTime: Duration = Duration.Zero,
+    leakDetectionThreshold: Duration = Duration.Zero,
+    aliveBypassWindow: Duration = 500.millis,
+    shutdownTimeout: Duration = 30.seconds,
+    maintenanceInterval: Option[Duration] = None,
+    autoCommit: Boolean = true,
+    transactionIsolation: Option[TransactionIsolation] = None,
+    readOnly: Boolean = false,
+    catalog: Option[String] = None,
+    schema: Option[String] = None,
+    connectionInitSql: Option[String] = None,
+    connectionTestQuery: Option[String] = None,
+    statementCacheSize: Int = 0,
+    failureTracking: Boolean = true,
+    jmxEnabled: Boolean = false,
+    jmxDomain: String = PoolConfig.DefaultJmxDomain,
 ) {
 
   PoolConfig.errorsOf(this) match {
     case errors if errors.nonEmpty => throw new PoolConfigException(errors)
-    case _                        => ()
+    case _                         => ()
   }
 
   /** How many idle connections the pool keeps: `maximumPoolSize` by default. */
@@ -95,7 +95,11 @@ object PoolConfig {
 
   /** The same descriptor under a dotted path, nested one segment at a time. */
   def configAt(path: String): zio.Config[PoolConfig] =
-    path.split('.').iterator.filter(_.nonEmpty).foldRight(config)((segment, nested) => nested.nested(segment))
+    path
+      .split('.')
+      .iterator
+      .filter(_.nonEmpty)
+      .foldRight(config)((segment, nested) => nested.nested(segment))
 
   /** Builds a config, collecting every violation instead of throwing. */
   def validated(config: => PoolConfig): Either[Chunk[PoolConfigError], PoolConfig] =

@@ -22,9 +22,9 @@ object Observed extends ZIOAppDefault {
         _       <- ZIO.foreachParDiscard(1 to 20)(_ => ZIO.scoped(pool.connection))
         metrics <- pool.metrics
         _       <- Console.printLine(
-                     s"acquires=${metrics.acquires} created=${metrics.connectionsCreated} " +
-                       s"mean acquire=${metrics.averageAcquireNanos.toLong}ns",
-                   )
+          s"acquires=${metrics.acquires} created=${metrics.connectionsCreated} " +
+            s"mean acquire=${metrics.averageAcquireNanos.toLong}ns",
+        )
       } yield ()
     }
 }

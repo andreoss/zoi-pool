@@ -10,7 +10,7 @@ import zio.{Duration, Scope, UIO, ZIO, durationInt}
  * Counting stays in memory on the acquire path; a fibre installed with the pool
  * copies the numbers into the registry, so the hot path never runs an effect.
  */
-private[pool] final class ZioPoolMetrics(poolName: String, interval: Duration) extends PoolMetrics {
+final private[pool] class ZioPoolMetrics(poolName: String, interval: Duration) extends PoolMetrics {
 
   private val backing = PoolMetrics.recording
   private val labels  = Set(MetricLabel("pool", poolName))
@@ -28,13 +28,13 @@ private[pool] final class ZioPoolMetrics(poolName: String, interval: Duration) e
   private val meanWait = gauge("zoi_pool_acquire_seconds_mean")
   private val meanPark = gauge("zoi_pool_parked_seconds_mean")
 
-  def connectionCreated(): Unit                             = backing.connectionCreated()
-  def connectionClosed(): Unit                              = backing.connectionClosed()
-  def connectionRetired(): Unit                             = backing.connectionRetired()
-  def acquireTimedOut(): Unit                               = backing.acquireTimedOut()
-  def leakSuspected(): Unit                                 = backing.leakSuspected()
-  def acquireSucceeded(nanos: Long, parked: Boolean): Unit  = backing.acquireSucceeded(nanos, parked)
-  def counters: PoolMetricsSnapshot                         = backing.counters
+  def connectionCreated(): Unit                            = backing.connectionCreated()
+  def connectionClosed(): Unit                             = backing.connectionClosed()
+  def connectionRetired(): Unit                            = backing.connectionRetired()
+  def acquireTimedOut(): Unit                              = backing.acquireTimedOut()
+  def leakSuspected(): Unit                                = backing.leakSuspected()
+  def acquireSucceeded(nanos: Long, parked: Boolean): Unit = backing.acquireSucceeded(nanos, parked)
+  def counters: PoolMetricsSnapshot                        = backing.counters
 
   override def install(snapshot: UIO[PoolMetricsSnapshot]): ZIO[Scope, Nothing, Unit] =
     (snapshot.flatMap(publish) *> ZIO.sleep(interval)).forever.forkScoped.unit

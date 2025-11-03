@@ -16,7 +16,7 @@ import zio.{Scope, ZIO, durationInt}
 object ConnectionHandleSpec extends ZIOSpecDefault {
 
   private def pool(
-    customise: PoolConfig => PoolConfig = config => config,
+      customise: PoolConfig => PoolConfig = config => config,
   ): ZIO[Scope, Throwable, ConnectionPoolLive] =
     H2Backend.freshUrl.flatMap(url =>
       ConnectionPoolLive.scoped(customise(PoolConfig(url)), PoolHooks.default),
@@ -29,7 +29,9 @@ object ConnectionHandleSpec extends ZIOSpecDefault {
     } catch { case _: SQLException => () }
 
   private def borrowed[A](use: Connection => A): ZIO[Any, Throwable, A] =
-    ZIO.scoped(pool().flatMap(p => ZIO.scoped(p.connection.flatMap(c => ZIO.attemptBlocking(use(c))))))
+    ZIO.scoped(
+      pool().flatMap(p => ZIO.scoped(p.connection.flatMap(c => ZIO.attemptBlocking(use(c))))),
+    )
 
   def spec = suite("borrowed connection")(
     test("delegates the statement factories") {
@@ -48,7 +50,11 @@ object ConnectionHandleSpec extends ZIOSpecDefault {
         touch(connection.prepareStatement("SELECT 1", Array(1)))
         touch(connection.prepareStatement("SELECT 1", Array("ID")))
         touch(
-          connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY),
+          connection.prepareStatement(
+            "SELECT 1",
+            ResultSet.TYPE_FORWARD_ONLY,
+            ResultSet.CONCUR_READ_ONLY,
+          ),
         )
         touch(
           connection.prepareStatement(
@@ -59,7 +65,13 @@ object ConnectionHandleSpec extends ZIOSpecDefault {
           ),
         )
         touch(connection.prepareCall("SELECT 1"))
-        touch(connection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY))
+        touch(
+          connection.prepareCall(
+            "SELECT 1",
+            ResultSet.TYPE_FORWARD_ONLY,
+            ResultSet.CONCUR_READ_ONLY,
+          ),
+        )
         touch(
           connection.prepareCall(
             "SELECT 1",
@@ -73,7 +85,7 @@ object ConnectionHandleSpec extends ZIOSpecDefault {
     },
     test("delegates the metadata and warning calls") {
       borrowed { connection =>
-        val product = connection.getMetaData.getDatabaseProductName
+        val product     = connection.getMetaData.getDatabaseProductName
         touch(connection.getWarnings)
         connection.clearWarnings()
         touch(connection.getTypeMap)
@@ -170,66 +182,64 @@ object ConnectionHandleSpec extends ZIOSpecDefault {
     test("aborting a borrowed connection takes it out of service") {
       for {
         state <- ZIO.scoped {
-                   pool(_.copy(maximumPoolSize = 2)).flatMap { p =>
-                     ZIO.scoped(
-                       p.connection.flatMap(c =>
-                         ZIO.attemptBlocking(c.abort(runnable => runnable.run())),
-                       ),
-                     ) *> p.state
-                   }
-                 }
+          pool(_.copy(maximumPoolSize = 2)).flatMap { p =>
+            ZIO.scoped(
+              p.connection.flatMap(c => ZIO.attemptBlocking(c.abort(runnable => runnable.run()))),
+            ) *> p.state
+          }
+        }
       } yield assertTrue(state.total <= 1)
     },
     test("a closed handle refuses every call that needs the database") {
       for {
         outcome <- ZIO.scoped {
-                     pool().flatMap { p =>
-                       ZIO.attemptBlocking {
-                         val connection = p.dataSource.getConnection()
-                         connection.close()
-                         List(
-                           refuses(connection.createStatement()),
-                           refuses(connection.prepareStatement("SELECT 1")),
-                           refuses(connection.prepareCall("SELECT 1")),
-                           refuses(connection.getMetaData),
-                           refuses(connection.commit()),
-                           refuses(connection.setAutoCommit(false)),
-                           refuses(connection.getCatalog),
-                         )
-                       }
-                     }
-                   }
+          pool().flatMap { p =>
+            ZIO.attemptBlocking {
+              val connection = p.dataSource.getConnection()
+              connection.close()
+              List(
+                refuses(connection.createStatement()),
+                refuses(connection.prepareStatement("SELECT 1")),
+                refuses(connection.prepareCall("SELECT 1")),
+                refuses(connection.getMetaData),
+                refuses(connection.commit()),
+                refuses(connection.setAutoCommit(false)),
+                refuses(connection.getCatalog),
+              )
+            }
+          }
+        }
       } yield assertTrue(outcome.forall(refused => refused))
     },
     test("a statement cache hands the same statement back without tracking it") {
       for {
         same <- ZIO.scoped {
-                  pool(_.copy(statementCacheSize = 4)).flatMap { p =>
-                    ZIO.scoped(
-                      p.connection.flatMap(c =>
-                        ZIO.attemptBlocking {
-                          val first  = c.prepareStatement("SELECT 1")
-                          val second = c.prepareStatement("SELECT 1")
-                          first eq second
-                        },
-                      ),
-                    )
-                  }
-                }
+          pool(_.copy(statementCacheSize = 4)).flatMap { p =>
+            ZIO.scoped(
+              p.connection.flatMap(c =>
+                ZIO.attemptBlocking {
+                  val first  = c.prepareStatement("SELECT 1")
+                  val second = c.prepareStatement("SELECT 1")
+                  first eq second
+                },
+              ),
+            )
+          }
+        }
       } yield assertTrue(same)
     },
     test("a borrowed connection reports itself open until it goes back") {
       for {
         result <- ZIO.scoped {
-                    pool().flatMap { p =>
-                      ZIO.attemptBlocking {
-                        val connection = p.dataSource.getConnection()
-                        val open       = connection.isClosed
-                        connection.close()
-                        (open, connection.isClosed)
-                      }
-                    }
-                  }
+          pool().flatMap { p =>
+            ZIO.attemptBlocking {
+              val connection = p.dataSource.getConnection()
+              val open       = connection.isClosed
+              connection.close()
+              (open, connection.isClosed)
+            }
+          }
+        }
       } yield assertTrue(!result._1, result._2)
     },
   ) @@ withLiveClock @@ withLiveRandom @@ timeout(90.seconds)

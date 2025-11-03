@@ -23,15 +23,15 @@ object ZioJdbc {
 
   /** Builds a pool and hands zio-jdbc its view of it. */
   def layer(
-    config: PoolConfig,
-    hooks: PoolHooks = PoolHooks.default,
+      config: PoolConfig,
+      hooks: PoolHooks = PoolHooks.default,
   ): ZLayer[Any, Throwable, ZConnectionPool] =
     ZLayer.scoped(ConnectionPool.scoped(config, hooks).map(asZConnectionPool))
 
   /** Both views of the same pool, for an application that uses each in places. */
   def layers(
-    config: PoolConfig,
-    hooks: PoolHooks = PoolHooks.default,
+      config: PoolConfig,
+      hooks: PoolHooks = PoolHooks.default,
   ): ZLayer[Any, Throwable, ConnectionPool with ZConnectionPool] =
     ZLayer.scopedEnvironment {
       ConnectionPool

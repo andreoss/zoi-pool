@@ -6,7 +6,7 @@ import java.util.Properties
 import zio.{Duration, IO, UIO, ZIO}
 
 /** Opens, configures, validates and closes physical connections for one pool. */
-private[pool] final class ConnectionFactory(config: PoolConfig) {
+final private[pool] class ConnectionFactory(config: PoolConfig) {
 
   private val properties: Properties = {
     val props = new Properties()
@@ -28,8 +28,10 @@ private[pool] final class ConnectionFactory(config: PoolConfig) {
   def configure(connection: Connection): IO[SQLException, Unit] =
     ZIO
       .attemptBlocking {
-        if (connection.getAutoCommit != config.autoCommit) connection.setAutoCommit(config.autoCommit)
-        config.transactionIsolation.foreach(level => connection.setTransactionIsolation(level.jdbcLevel))
+        if (connection.getAutoCommit != config.autoCommit)
+          connection.setAutoCommit(config.autoCommit)
+        config.transactionIsolation
+          .foreach(level => connection.setTransactionIsolation(level.jdbcLevel))
         if (config.readOnly) connection.setReadOnly(true)
         config.catalog.foreach(connection.setCatalog)
         config.schema.foreach(connection.setSchema)
@@ -63,9 +65,8 @@ private[pool] final class ConnectionFactory(config: PoolConfig) {
           config.catalog.foreach(catalog =>
             if (connection.getCatalog != catalog) connection.setCatalog(catalog),
           )
-          config.schema.foreach(schema =>
-            if (connection.getSchema != schema) connection.setSchema(schema),
-          )
+          config.schema
+            .foreach(schema => if (connection.getSchema != schema) connection.setSchema(schema))
           connection.clearWarnings()
           true
         }
@@ -76,6 +77,7 @@ private[pool] final class ConnectionFactory(config: PoolConfig) {
       connection.clearWarnings()
       true
     } catch { case _: SQLException => false }
+
   /** Checks a connection is still usable, by test query or by `isValid`. */
   def validate(connection: Connection): UIO[Boolean] =
     ZIO

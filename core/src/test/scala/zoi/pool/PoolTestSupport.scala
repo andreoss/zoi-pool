@@ -7,7 +7,9 @@ import zio.{Scope, ZIO}
 /** Helpers shared by every pool spec. */
 object PoolTestSupport {
 
-  def withPool[A](config: PoolConfig)(use: ConnectionPool => ZIO[Any, Throwable, A]): ZIO[Any, Throwable, A] =
+  def withPool[A](config: PoolConfig)(
+      use: ConnectionPool => ZIO[Any, Throwable, A],
+  ): ZIO[Any, Throwable, A] =
     ZIO.scoped(ConnectionPool.scoped(config).flatMap(use))
 
   def borrow[A](pool: ConnectionPool)(use: Connection => A): ZIO[Any, Throwable, A] =

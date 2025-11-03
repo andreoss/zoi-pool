@@ -12,44 +12,44 @@ import zio.{Config, Duration, durationInt}
  */
 private[pool] object PoolConfigDescriptor {
 
-  private final case class Connection(
-    url: String,
-    username: Option[String],
-    password: Option[String],
-    driverClassName: Option[String],
-    properties: Map[String, String],
-    poolName: String,
+  final private case class Connection(
+      url: String,
+      username: Option[String],
+      password: Option[String],
+      driverClassName: Option[String],
+      properties: Map[String, String],
+      poolName: String,
   )
 
-  private final case class Sizing(maximumPoolSize: Int, minimumIdle: Option[Int], initialSize: Int)
+  final private case class Sizing(maximumPoolSize: Int, minimumIdle: Option[Int], initialSize: Int)
 
-  private final case class Timeouts(
-    connectionTimeout: Duration,
-    validationTimeout: Duration,
-    idleTimeout: Duration,
-    maxLifetime: Duration,
-    keepaliveTime: Duration,
-    leakDetectionThreshold: Duration,
-    aliveBypassWindow: Duration,
-    shutdownTimeout: Duration,
-    maintenanceInterval: Option[Duration],
+  final private case class Timeouts(
+      connectionTimeout: Duration,
+      validationTimeout: Duration,
+      idleTimeout: Duration,
+      maxLifetime: Duration,
+      keepaliveTime: Duration,
+      leakDetectionThreshold: Duration,
+      aliveBypassWindow: Duration,
+      shutdownTimeout: Duration,
+      maintenanceInterval: Option[Duration],
   )
 
-  private final case class State(
-    autoCommit: Boolean,
-    transactionIsolation: Option[TransactionIsolation],
-    readOnly: Boolean,
-    catalog: Option[String],
-    schema: Option[String],
-    connectionInitSql: Option[String],
-    connectionTestQuery: Option[String],
+  final private case class State(
+      autoCommit: Boolean,
+      transactionIsolation: Option[TransactionIsolation],
+      readOnly: Boolean,
+      catalog: Option[String],
+      schema: Option[String],
+      connectionInitSql: Option[String],
+      connectionTestQuery: Option[String],
   )
 
-  private final case class Features(
-    statementCacheSize: Int,
-    failureTracking: Boolean,
-    jmxEnabled: Boolean,
-    jmxDomain: String,
+  final private case class Features(
+      statementCacheSize: Int,
+      failureTracking: Boolean,
+      jmxEnabled: Boolean,
+      jmxDomain: String,
   )
 
   private val connection: Config[Connection] =
@@ -118,11 +118,11 @@ private[pool] object PoolConfigDescriptor {
     }
 
   private def assemble(
-    connection: Connection,
-    sizing: Sizing,
-    timeouts: Timeouts,
-    state: State,
-    features: Features,
+      connection: Connection,
+      sizing: Sizing,
+      timeouts: Timeouts,
+      state: State,
+      features: Features,
   ): Either[Config.Error, PoolConfig] =
     PoolConfig
       .validated(

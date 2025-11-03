@@ -47,7 +47,7 @@ object PoolMetrics {
   def zio(poolName: String, interval: Duration = ZioPoolMetrics.DefaultInterval): PoolMetrics =
     new ZioPoolMetrics(poolName, interval)
 
-  private final class Recording extends PoolMetrics {
+  final private class Recording extends PoolMetrics {
     private val created  = new LongAdder
     private val closed   = new LongAdder
     private val retired  = new LongAdder

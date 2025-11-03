@@ -16,19 +16,19 @@ object BasicUsage extends ZIOAppDefault {
       for {
         pool   <- ConnectionPool.scoped(config)
         answer <- ZIO.scoped {
-                    pool.connection.flatMap { connection =>
-                      ZIO.attemptBlocking {
-                        val statement = connection.createStatement()
-                        try {
-                          val results = statement.executeQuery("SELECT 1")
-                          try {
-                            results.next()
-                            results.getInt(1)
-                          } finally results.close()
-                        } finally statement.close()
-                      }
-                    }
-                  }
+          pool.connection.flatMap { connection =>
+            ZIO.attemptBlocking {
+              val statement = connection.createStatement()
+              try {
+                val results = statement.executeQuery("SELECT 1")
+                try {
+                  results.next()
+                  results.getInt(1)
+                } finally results.close()
+              } finally statement.close()
+            }
+          }
+        }
         _      <- Console.printLine(s"the database says $answer")
         state  <- pool.state
         _      <- Console.printLine(s"pool holds ${state.total}, ${state.idle} of them idle")

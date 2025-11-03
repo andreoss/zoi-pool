@@ -17,10 +17,10 @@ object HandoffMicroBench extends ZIOAppDefault {
     for {
       _ <- Console.printLine("core       scenario         ops/s")
       _ <- ZIO.foreachDiscard(List("lock-free", "stm")) { name =>
-             ZIO.foreachDiscard(scenarios) { case (scenario, fibers, size) =>
-               measure(name, scenario, fibers, size)
-             }
-           }
+        ZIO.foreachDiscard(scenarios) { case (scenario, fibers, size) =>
+          measure(name, scenario, fibers, size)
+        }
+      }
     } yield ()
 
   private val scenarios = List(
@@ -35,17 +35,17 @@ object HandoffMicroBench extends ZIOAppDefault {
 
   private def measure(name: String, scenario: String, fibers: Int, size: Int): ZIO[Any, Any, Unit] =
     ZIO.scoped {
-    for {
-      handoff <- core(name, size)
-      next    <- Ref.make(0)
-      perFibre = math.max(1, operations / fibers)
-      _       <- cycle(handoff, next).repeatN(999)
-      start   <- Clock.nanoTime
-      _       <- ZIO.foreachParDiscard(1 to fibers)(_ => cycle(handoff, next).repeatN(perFibre - 1))
-      end     <- Clock.nanoTime
-      rate     = (perFibre * fibers).toDouble * 1000000000.0 / math.max(end - start, 1L).toDouble
-      _       <- Console.printLine(f"$name%-10s $scenario%-14s ${rate}%,12.0f")
-    } yield ()
+      for {
+        handoff <- core(name, size)
+        next    <- Ref.make(0)
+        perFibre = math.max(1, operations / fibers)
+        _     <- cycle(handoff, next).repeatN(999)
+        start <- Clock.nanoTime
+        _     <- ZIO.foreachParDiscard(1 to fibers)(_ => cycle(handoff, next).repeatN(perFibre - 1))
+        end   <- Clock.nanoTime
+        rate = (perFibre * fibers).toDouble * 1000000000.0 / math.max(end - start, 1L).toDouble
+        _ <- Console.printLine(f"$name%-10s $scenario%-14s ${rate}%,12.0f")
+      } yield ()
     }
 
   /** One borrow and one return, exactly as the pool drives the core. */

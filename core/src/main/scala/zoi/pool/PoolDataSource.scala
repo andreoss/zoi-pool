@@ -9,7 +9,7 @@ import javax.sql.DataSource
  * The pool seen as a plain `javax.sql.DataSource`, so a consumer that knows
  * nothing about ZIO can use it: `getConnection` borrows and `close` returns.
  */
-private[pool] final class PoolDataSource(pool: ConnectionPoolLive, config: PoolConfig)
+final private[pool] class PoolDataSource(pool: ConnectionPoolLive, config: PoolConfig)
     extends DataSource {
 
   @volatile private var writer: PrintWriter = null

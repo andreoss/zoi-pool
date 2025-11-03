@@ -128,7 +128,9 @@ object PoolConfigSpec extends ZIOSpecDefault {
         assertTrue(PoolConfig(url, maximumPoolSize = 7).effectiveMinimumIdle == 7)
       },
       test("an explicit minimumIdle wins") {
-        assertTrue(PoolConfig(url, maximumPoolSize = 7, minimumIdle = Some(2)).effectiveMinimumIdle == 2)
+        assertTrue(
+          PoolConfig(url, maximumPoolSize = 7, minimumIdle = Some(2)).effectiveMinimumIdle == 2,
+        )
       },
       test("zero-valued durations read as disabled features") {
         val c = PoolConfig(
@@ -156,9 +158,15 @@ object PoolConfigSpec extends ZIOSpecDefault {
       },
       test("names parse in the JDBC and the bare form") {
         assertTrue(
-          TransactionIsolation.fromName("TRANSACTION_READ_COMMITTED").contains(TransactionIsolation.ReadCommitted),
-          TransactionIsolation.fromName("read_committed").contains(TransactionIsolation.ReadCommitted),
-          TransactionIsolation.fromName("ReadCommitted").contains(TransactionIsolation.ReadCommitted),
+          TransactionIsolation
+            .fromName("TRANSACTION_READ_COMMITTED")
+            .contains(TransactionIsolation.ReadCommitted),
+          TransactionIsolation
+            .fromName("read_committed")
+            .contains(TransactionIsolation.ReadCommitted),
+          TransactionIsolation
+            .fromName("ReadCommitted")
+            .contains(TransactionIsolation.ReadCommitted),
           TransactionIsolation.fromName("nonsense").isEmpty,
         )
       },

@@ -27,7 +27,9 @@ object QuillSpec extends ZIOSpecDefault {
       try {
         val statement = connection.createStatement()
         try {
-          statement.execute("CREATE TABLE IF NOT EXISTS Widget (id INT PRIMARY KEY, name VARCHAR(32))")
+          statement.execute(
+            "CREATE TABLE IF NOT EXISTS Widget (id INT PRIMARY KEY, name VARCHAR(32))",
+          )
           statement.execute("DELETE FROM Widget")
           statement.execute("INSERT INTO Widget (id, name) VALUES (1, 'nut'), (2, 'bolt')")
         } finally statement.close()
@@ -40,11 +42,11 @@ object QuillSpec extends ZIOSpecDefault {
         url  <- H2Backend.freshUrl
         _    <- createTable(url)
         rows <- ZIO
-                  .serviceWithZIO[Quill.H2[Literal]] { ctx =>
-                    import ctx._
-                    ctx.run(quote(query[Widget]))
-                  }
-                  .provide(dataSource(url), Quill.H2.fromNamingStrategy(Literal))
+          .serviceWithZIO[Quill.H2[Literal]] { ctx =>
+            import ctx._
+            ctx.run(quote(query[Widget]))
+          }
+          .provide(dataSource(url), Quill.H2.fromNamingStrategy(Literal))
       } yield assertTrue(rows.map(_.name).sorted == List("bolt", "nut"))
     },
     test("a Quill transaction runs on one pooled connection") {
@@ -52,12 +54,12 @@ object QuillSpec extends ZIOSpecDefault {
         url    <- H2Backend.freshUrl
         _      <- createTable(url)
         result <- ZIO.scoped {
-                    ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 2)).flatMap { pool =>
-                      val ctx = Quill.H2(Literal, pool.dataSource)
-                      import ctx._
-                      ctx.transaction(ctx.run(quote(query[Widget].size))) <*> pool.state
-                    }
-                  }
+          ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 2)).flatMap { pool =>
+            val ctx = Quill.H2(Literal, pool.dataSource)
+            import ctx._
+            ctx.transaction(ctx.run(quote(query[Widget].size))) <*> pool.state
+          }
+        }
       } yield assertTrue(result._1 == 2L, result._2.active == 0)
     },
     test("many Quill queries share the pool and give it back") {
@@ -65,11 +67,11 @@ object QuillSpec extends ZIOSpecDefault {
         url    <- H2Backend.freshUrl
         _      <- createTable(url)
         result <- ZIO
-                    .serviceWithZIO[Quill.H2[Literal]] { ctx =>
-                      import ctx._
-                      ZIO.foreachPar(1 to 24)(_ => ctx.run(quote(query[Widget].size)))
-                    }
-                    .provide(dataSource(url), Quill.H2.fromNamingStrategy(Literal))
+          .serviceWithZIO[Quill.H2[Literal]] { ctx =>
+            import ctx._
+            ZIO.foreachPar(1 to 24)(_ => ctx.run(quote(query[Widget].size)))
+          }
+          .provide(dataSource(url), Quill.H2.fromNamingStrategy(Literal))
       } yield assertTrue(result.forall(_ == 2L), result.length == 24)
     },
     test("the pool is left clean after Quill is done with it") {
@@ -77,12 +79,12 @@ object QuillSpec extends ZIOSpecDefault {
         url   <- H2Backend.freshUrl
         _     <- createTable(url)
         state <- ZIO.scoped {
-                   ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 4)).flatMap { pool =>
-                     val ctx = Quill.H2(Literal, pool.dataSource)
-                     import ctx._
-                     ctx.run(quote(query[Widget])) *> pool.state
-                   }
-                 }
+          ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 4)).flatMap { pool =>
+            val ctx = Quill.H2(Literal, pool.dataSource)
+            import ctx._
+            ctx.run(quote(query[Widget])) *> pool.state
+          }
+        }
       } yield assertTrue(state.active == 0, state.idle == state.total, state.total >= 1)
     },
     test("a plain JDBC caller and Quill can share one pool") {
@@ -90,19 +92,19 @@ object QuillSpec extends ZIOSpecDefault {
         url    <- H2Backend.freshUrl
         _      <- createTable(url)
         result <- ZIO.scoped {
-                    ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 2)).flatMap { pool =>
-                      val ctx = Quill.H2(Literal, pool.dataSource)
-                      import ctx._
-                      for {
-                        viaQuill <- ctx.run(quote(query[Widget].size))
-                        viaJdbc  <- ZIO.attemptBlocking {
-                                      val connection = pool.dataSource.getConnection()
-                                      try PoolTestSupport.queryInt(connection, "SELECT COUNT(*) FROM Widget")
-                                      finally connection.close()
-                                    }
-                      } yield (viaQuill, viaJdbc)
-                    }
-                  }
+          ConnectionPool.scoped(PoolConfig(url, maximumPoolSize = 2)).flatMap { pool =>
+            val ctx = Quill.H2(Literal, pool.dataSource)
+            import ctx._
+            for {
+              viaQuill <- ctx.run(quote(query[Widget].size))
+              viaJdbc  <- ZIO.attemptBlocking {
+                val connection = pool.dataSource.getConnection()
+                try PoolTestSupport.queryInt(connection, "SELECT COUNT(*) FROM Widget")
+                finally connection.close()
+              }
+            } yield (viaQuill, viaJdbc)
+          }
+        }
       } yield assertTrue(result._1 == 2L, result._2 == 2)
     },
   ) @@ withLiveClock @@ withLiveRandom @@ timeout(120.seconds)

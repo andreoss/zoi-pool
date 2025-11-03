@@ -24,7 +24,7 @@ import HandoffCore.{Acquired, Offered}
  * measured cost of routing every acquire through a transaction is what
  * justifies it.
  */
-private[pool] final class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
+final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
     extends HandoffCore[A] {
 
   private val idle    = new ConcurrentLinkedDeque[A]
@@ -68,7 +68,7 @@ private[pool] final class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
         waiter
       }
     }
-  def releaseSlot: UIO[Unit] =
+  def releaseSlot: UIO[Unit]                                           =
     ZIO.suspendSucceed {
       total.decrementAndGet()
       complete(pairWaiters())
@@ -208,7 +208,7 @@ private[pool] final class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
               expired += waiter
             }
           }
-          val victims = expired.result()
+          val victims  = expired.result()
           if (victims.isEmpty) ZIO.unit
           else
             ZIO.foreachDiscard(victims)(waiter =>
@@ -216,6 +216,7 @@ private[pool] final class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
             )
         }
     }
+
   /**
    * Takes the next acquirer that can still be satisfied, dropping any that gave
    * up. A waiter is claimed as it leaves the queue, so nothing has to be
@@ -248,7 +249,7 @@ private[pool] final class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
    * Pairs waiting acquirers with whatever is free, claiming both sides before
    * anything is promised, so nothing is handed out twice or lost.
    */
-  private def pairWaiters(): List[(LockFreeHandoffCore.Waiter[A], Acquired[A])] =
+  private def pairWaiters(): List[(LockFreeHandoffCore.Waiter[A], Acquired[A])]               =
     if (waiting.get() <= 0 || closed.get()) Nil
     else {
       val paired   = List.newBuilder[(LockFreeHandoffCore.Waiter[A], Acquired[A])]
@@ -286,10 +287,10 @@ private[pool] object LockFreeHandoffCore {
   private val BusyPause: Duration  = Duration.fromMillis(2)
 
   /** One parked acquirer, handed its outcome exactly once. */
-  private[pool] final class Waiter[A](
-    val promise: Promise[SQLException, HandoffCore.Acquired[A]],
-    val deadlineNanos: Long,
-    val budget: Duration,
+  final private[pool] class Waiter[A](
+      val promise: Promise[SQLException, HandoffCore.Acquired[A]],
+      val deadlineNanos: Long,
+      val budget: Duration,
   ) {
     private val taken = new AtomicBoolean(false)
 

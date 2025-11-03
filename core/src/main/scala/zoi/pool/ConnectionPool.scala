@@ -40,28 +40,28 @@ object ConnectionPool {
 
   /** Builds a pool that shuts down when the surrounding scope closes. */
   def scoped(
-    config: PoolConfig,
-    hooks: PoolHooks = PoolHooks.default,
+      config: PoolConfig,
+      hooks: PoolHooks = PoolHooks.default,
   ): ZIO[Scope, SQLException, ConnectionPool] =
     ConnectionPoolLive.scoped(config, hooks)
 
   def layer(
-    config: PoolConfig,
-    hooks: PoolHooks = PoolHooks.default,
+      config: PoolConfig,
+      hooks: PoolHooks = PoolHooks.default,
   ): ZLayer[Any, SQLException, ConnectionPool] =
     ZLayer.scoped(scoped(config, hooks))
 
   /** A `DataSource` layer, for consumers that take one. */
   def dataSourceLayer(
-    config: PoolConfig,
-    hooks: PoolHooks = PoolHooks.default,
+      config: PoolConfig,
+      hooks: PoolHooks = PoolHooks.default,
   ): ZLayer[Any, SQLException, DataSource] =
     ZLayer.scoped(scoped(config, hooks).map(_.dataSource))
 
   /** Builds a pool from the application's configuration, under `path`. */
   def layerFromConfig(
-    path: String = "zoi.pool",
-    hooks: PoolHooks = PoolHooks.default,
+      path: String = "zoi.pool",
+      hooks: PoolHooks = PoolHooks.default,
   ): ZLayer[Any, Throwable, ConnectionPool] =
     ZLayer.scoped(ZIO.config(PoolConfig.configAt(path)).flatMap(scoped(_, hooks)))
 

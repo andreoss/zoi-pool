@@ -1,17 +1,17 @@
-val zioVersion      = "2.1.22"
-val h2Version       = "2.3.232"
-val derbyVersion    = "10.17.1.0"
-val sqliteVersion   = "3.47.1.0"
-val zioJdbcVersion  = "0.1.2"
-val quillVersion    = "4.8.5"
-val doobieVersion   = "1.0.0-RC10"
+val zioVersion            = "2.1.22"
+val h2Version             = "2.3.232"
+val derbyVersion          = "10.17.1.0"
+val sqliteVersion         = "3.47.1.0"
+val zioJdbcVersion        = "0.1.2"
+val quillVersion          = "4.8.5"
+val doobieVersion         = "1.0.0-RC10"
 val testcontainersVersion = "1.21.3"
-val postgresVersion = "42.7.8"
-val mysqlVersion    = "9.1.0"
-val mariadbVersion  = "3.5.1"
-val slf4jVersion    = "2.0.16"
-val scala3Version   = "3.3.7"
-val scala213Version = "2.13.17"
+val postgresVersion       = "42.7.8"
+val mysqlVersion          = "9.1.0"
+val mariadbVersion        = "3.5.1"
+val slf4jVersion          = "2.0.16"
+val scala3Version         = "3.3.7"
+val scala213Version       = "2.13.17"
 
 inThisBuild(
   List(
@@ -37,19 +37,22 @@ val commonSettings = Seq(
     case _            => Seq("-Xsource:3", "-Wconf:cat=scala3-migration:s")
   }),
   testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+  // Forked so JDBC driver discovery sees a flat classpath: DriverManager only
+  // offers a driver the calling classloader can also load by name.
+  Test / fork := true,
   Test / javaOptions += "-Dderby.stream.error.file=target/derby.log",
 )
 
 // Published modules keep binary compatibility within a release line, and hold
 // the coverage gate the process asks for.
 val releaseSettings = Seq(
-  coverageMinimumStmtTotal := 85,
+  coverageMinimumStmtTotal   := 85,
   coverageMinimumBranchTotal := 70,
-  coverageFailOnMinimum := true,
+  coverageFailOnMinimum      := true,
   // Set to the previous release once one exists; empty means nothing to check.
-  mimaPreviousArtifacts := Set.empty,
+  mimaPreviousArtifacts      := Set.empty,
 )
-lazy val root = (project in file("."))
+lazy val root       = (project in file("."))
   .aggregate(core, interop, consumers, examples)
   .settings(
     name           := "zoi-pool-root",
@@ -62,20 +65,20 @@ lazy val core = (project in file("core"))
   .settings(
     name := "zoi-pool",
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio"          % zioVersion,
-      "dev.zio" %% "zio-test"     % zioVersion % Test,
-      "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
-      "com.h2database"   % "h2"          % h2Version     % Test,
-      "org.apache.derby" % "derby"       % derbyVersion  % Test,
-      "org.apache.derby" % "derbytools"  % derbyVersion  % Test,
-      "org.xerial"       % "sqlite-jdbc" % sqliteVersion % Test,
-      "org.testcontainers" % "postgresql" % testcontainersVersion % Test,
-      "org.testcontainers" % "mysql"      % testcontainersVersion % Test,
-      "org.testcontainers" % "mariadb"    % testcontainersVersion % Test,
-      "org.postgresql"   % "postgresql"  % postgresVersion % Test,
-      "com.mysql"        % "mysql-connector-j" % mysqlVersion % Test,
-      "org.mariadb.jdbc" % "mariadb-java-client" % mariadbVersion % Test,
-      "org.slf4j"        % "slf4j-simple" % slf4jVersion % Test,
+      "dev.zio"           %% "zio"                 % zioVersion,
+      "dev.zio"           %% "zio-test"            % zioVersion            % Test,
+      "dev.zio"           %% "zio-test-sbt"        % zioVersion            % Test,
+      "com.h2database"     % "h2"                  % h2Version             % Test,
+      "org.apache.derby"   % "derby"               % derbyVersion          % Test,
+      "org.apache.derby"   % "derbytools"          % derbyVersion          % Test,
+      "org.xerial"         % "sqlite-jdbc"         % sqliteVersion         % Test,
+      "org.testcontainers" % "postgresql"          % testcontainersVersion % Test,
+      "org.testcontainers" % "mysql"               % testcontainersVersion % Test,
+      "org.testcontainers" % "mariadb"             % testcontainersVersion % Test,
+      "org.postgresql"     % "postgresql"          % postgresVersion       % Test,
+      "com.mysql"          % "mysql-connector-j"   % mysqlVersion          % Test,
+      "org.mariadb.jdbc"   % "mariadb-java-client" % mariadbVersion        % Test,
+      "org.slf4j"          % "slf4j-simple"        % slf4jVersion          % Test,
     ),
   )
 
@@ -86,19 +89,19 @@ lazy val bench = (project in file("bench"))
   .dependsOn(core)
   .settings(commonSettings)
   .settings(
-    name                     := "zoi-pool-bench",
-    publish / skip           := true,
+    name                      := "zoi-pool-bench",
+    publish / skip            := true,
     Compile / run / mainClass := Some("zoi.pool.bench.BenchMain"),
-    run / fork               := true,
-    run / connectInput       := true,
-    run / baseDirectory      := (LocalRootProject / baseDirectory).value,
+    run / fork                := true,
+    run / connectInput        := true,
+    run / baseDirectory       := (LocalRootProject / baseDirectory).value,
     libraryDependencies ++= Seq(
-      "dev.zio"    %% "zio"                % zioVersion,
-      "com.zaxxer"  % "HikariCP"           % "5.1.0",
-      "com.h2database" % "h2"              % h2Version,
-      "org.postgresql" % "postgresql"      % "42.7.8",
-      "com.mysql"   % "mysql-connector-j"  % "9.1.0",
-      "org.slf4j"   % "slf4j-simple"       % "2.0.16",
+      "dev.zio"       %% "zio"               % zioVersion,
+      "com.zaxxer"     % "HikariCP"          % "5.1.0",
+      "com.h2database" % "h2"                % h2Version,
+      "org.postgresql" % "postgresql"        % "42.7.8",
+      "com.mysql"      % "mysql-connector-j" % "9.1.0",
+      "org.slf4j"      % "slf4j-simple"      % "2.0.16",
     ),
   )
 
@@ -110,10 +113,10 @@ lazy val interop = (project in file("interop"))
   .settings(
     name := "zoi-pool-interop",
     libraryDependencies ++= Seq(
-      "dev.zio"        %% "zio-jdbc"     % zioJdbcVersion,
-      "dev.zio"        %% "zio-test"     % zioVersion % Test,
-      "dev.zio"        %% "zio-test-sbt" % zioVersion % Test,
-      "com.h2database"  % "h2"           % h2Version  % Test,
+      "dev.zio"       %% "zio-jdbc"     % zioJdbcVersion,
+      "dev.zio"       %% "zio-test"     % zioVersion % Test,
+      "dev.zio"       %% "zio-test-sbt" % zioVersion % Test,
+      "com.h2database" % "h2"           % h2Version  % Test,
     ),
   )
 
@@ -126,11 +129,11 @@ lazy val consumers = (project in file("consumers"))
     name           := "zoi-pool-consumers",
     publish / skip := true,
     libraryDependencies ++= Seq(
-      "io.getquill"    %% "quill-jdbc-zio" % quillVersion  % Test,
-      "org.tpolecat"   %% "doobie-core"    % doobieVersion % Test,
-      "dev.zio"        %% "zio-test"       % zioVersion    % Test,
-      "dev.zio"        %% "zio-test-sbt"   % zioVersion    % Test,
-      "com.h2database"  % "h2"             % h2Version     % Test,
+      "io.getquill"   %% "quill-jdbc-zio" % quillVersion  % Test,
+      "org.tpolecat"  %% "doobie-core"    % doobieVersion % Test,
+      "dev.zio"       %% "zio-test"       % zioVersion    % Test,
+      "dev.zio"       %% "zio-test-sbt"   % zioVersion    % Test,
+      "com.h2database" % "h2"             % h2Version     % Test,
     ),
   )
 
@@ -145,4 +148,3 @@ lazy val examples = (project in file("examples"))
       "com.h2database" % "h2" % h2Version,
     ),
   )
-

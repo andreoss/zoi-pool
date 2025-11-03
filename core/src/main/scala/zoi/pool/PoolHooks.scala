@@ -5,8 +5,8 @@ package zoi.pool
  * data, so functions and instances are passed here instead.
  */
 final case class PoolHooks(
-  classify: Throwable => Option[SqlExceptionClassification] = _ => None,
-  metrics: PoolMetrics = PoolMetrics.none,
+    classify: Throwable => Option[SqlExceptionClassification] = _ => None,
+    metrics: PoolMetrics = PoolMetrics.none,
 ) {
 
   /** The caller's reading of a failure, falling back to the default one. */

@@ -1,6 +1,11 @@
 package zoi.pool
 
-import java.sql.{SQLException, SQLNonTransientConnectionException, SQLRecoverableException, SQLTransientConnectionException}
+import java.sql.{
+  SQLException,
+  SQLNonTransientConnectionException,
+  SQLRecoverableException,
+  SQLTransientConnectionException,
+}
 
 /** Whether a failure killed the connection or only the statement. */
 sealed trait SqlExceptionClassification
