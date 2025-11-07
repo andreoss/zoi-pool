@@ -31,6 +31,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
   private val waiters = new ConcurrentLinkedDeque[LockFreeHandoffCore.Waiter[A]]
   private val total   = new AtomicInteger(0)
   private val waiting = new AtomicInteger(0)
+  private val nextDue = new java.util.concurrent.atomic.AtomicLong(Long.MaxValue)
   private val closed  = new AtomicBoolean(false)
 
   def acquire(timeout: Duration): IO[SQLException, Acquired[A]] =
@@ -151,6 +152,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
         val waiter = new LockFreeHandoffCore.Waiter[A](promise, now + timeout.toNanos, timeout)
         ZIO.suspendSucceed {
           waiting.incrementAndGet()
+          recordDeadline(waiter.deadlineNanos)
           waiters.addLast(waiter)
           register(waiter)
         }
@@ -192,28 +194,42 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
     loop
   }
 
+  /** Remembers the earliest budget, so a sweep that cannot find work is skipped. */
+  private def recordDeadline(deadlineNanos: Long): Unit = {
+    var current = nextDue.get()
+    while (deadlineNanos < current && !nextDue.compareAndSet(current, deadlineNanos))
+      current = nextDue.get()
+  }
+
   private def sweep: UIO[Unit] =
     ZIO.suspendSucceed {
-      if (waiters.isEmpty) ZIO.unit
-      else
+      if (waiters.isEmpty) {
+        nextDue.set(Long.MaxValue)
+        ZIO.unit
+      } else
         Clock.nanoTime.flatMap { now =>
-          val expired  = List.newBuilder[LockFreeHandoffCore.Waiter[A]]
-          val iterator = waiters.iterator()
-          while (iterator.hasNext) {
-            val waiter = iterator.next()
-            if (!waiter.claimable) iterator.remove()
-            else if (waiter.deadlineNanos <= now && waiter.claim()) {
-              iterator.remove()
-              waiting.decrementAndGet()
-              expired += waiter
+          if (now < nextDue.get()) ZIO.unit
+          else {
+            val expired  = List.newBuilder[LockFreeHandoffCore.Waiter[A]]
+            var earliest = Long.MaxValue
+            val iterator = waiters.iterator()
+            while (iterator.hasNext) {
+              val waiter = iterator.next()
+              if (!waiter.claimable) iterator.remove()
+              else if (waiter.deadlineNanos <= now && waiter.claim()) {
+                iterator.remove()
+                waiting.decrementAndGet()
+                expired += waiter
+              } else if (waiter.deadlineNanos < earliest) earliest = waiter.deadlineNanos
             }
+            nextDue.set(earliest)
+            val victims  = expired.result()
+            if (victims.isEmpty) ZIO.unit
+            else
+              ZIO.foreachDiscard(victims)(waiter =>
+                waiter.promise.fail(new PoolTimeoutException(poolName, waiter.budget)),
+              )
           }
-          val victims  = expired.result()
-          if (victims.isEmpty) ZIO.unit
-          else
-            ZIO.foreachDiscard(victims)(waiter =>
-              waiter.promise.fail(new PoolTimeoutException(poolName, waiter.budget)),
-            )
         }
     }
 

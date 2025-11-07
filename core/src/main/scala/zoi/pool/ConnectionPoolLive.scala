@@ -35,6 +35,7 @@ final private[pool] class ConnectionPoolLive(
   private val idleTimeoutNanos       = config.idleTimeout.toNanos
   private val keepaliveNanos         = config.keepaliveTime.toNanos
   private val recorder               = hooks.metrics
+  @volatile private var paused       = false
   private val metricsEnabled         = recorder ne PoolMetrics.none
 
   private val releaseFromJdbc: ConnectionHandle => Unit =
@@ -77,7 +78,11 @@ final private[pool] class ConnectionPoolLive(
       case _                       => ()
     }
 
+  /** A running pool pays one volatile read here, not a transactional one. */
   private def awaitResume: UIO[Unit] =
+    if (!paused) ZIO.unit else waitForResume
+
+  private def waitForResume: UIO[Unit] =
     suspendGate.get.flatMap {
       case None       => ZIO.unit
       case Some(gate) => gate.await
@@ -202,15 +207,17 @@ final private[pool] class ConnectionPoolLive(
   def suspend: UIO[Unit] =
     Promise.make[Nothing, Unit].flatMap { fresh =>
       suspendGate.update {
-        case None     => Some(fresh)
+        case None     =>
+          paused = true
+          Some(fresh)
         case existing => existing
       }
     }
 
   def resume: UIO[Unit] =
-    suspendGate.getAndSet(None).flatMap {
-      case Some(gate) => gate.succeed(()).unit
-      case None       => ZIO.unit
+    suspendGate.getAndSet(None).flatMap { gate =>
+      paused = false
+      gate.fold(ZIO.unit: UIO[Unit])(_.succeed(()).unit)
     }
 
   /** Borrows from a synchronous caller, translating failure into JDBC's terms. */
