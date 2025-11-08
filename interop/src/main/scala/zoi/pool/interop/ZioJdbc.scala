@@ -2,6 +2,7 @@ package zoi.pool.interop
 
 import zio.jdbc.{ZConnection, ZConnectionPool}
 import zio.{UIO, ZEnvironment, ZLayer}
+
 import zoi.pool.{ConnectionPool, PoolConfig, PoolHooks}
 
 /**

@@ -25,7 +25,7 @@ jobs:
         run: sbt scalafmtCheckAll scalafmtSbtCheck
 
       - name: Imports
-        run: sbt "scalafixAll --check"
+        run: sbt scalafixEnable "scalafixAll --check"
 
       - name: Cross-build and test
         run: sbt +test

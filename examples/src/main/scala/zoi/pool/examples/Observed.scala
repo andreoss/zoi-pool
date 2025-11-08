@@ -1,6 +1,7 @@
 package zoi.pool.examples
 
 import zio.{Console, ZIO, ZIOAppDefault}
+
 import zoi.pool.{ConnectionPool, PoolConfig, PoolHooks, PoolMetrics}
 
 /** Run a pool with metrics and a management bean switched on. */

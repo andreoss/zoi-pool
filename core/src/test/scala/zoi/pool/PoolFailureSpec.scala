@@ -7,7 +7,7 @@ import zio.test.TestAspect._
 import zio.test._
 import zio.{Promise, Scope, ZIO, durationInt}
 
-import SqlExceptionClassification._
+import zoi.pool.SqlExceptionClassification._
 
 /** Failure semantics, invalidation, suspension and shutdown races. */
 object PoolFailureSpec extends ZIOSpecDefault {

@@ -3,6 +3,7 @@ package zoi.pool.examples
 import javax.sql.DataSource
 
 import zio.{Console, ZIO, ZIOAppDefault}
+
 import zoi.pool.{ConnectionPool, PoolConfig}
 
 /**

@@ -3,6 +3,7 @@ package zoi.pool.examples
 import java.sql.Connection
 
 import zio.{Console, ZIO, ZIOAppDefault, ZLayer}
+
 import zoi.pool.{ConnectionPool, PoolConfig}
 
 /** Wire the pool as a layer and build a service on top of it. */

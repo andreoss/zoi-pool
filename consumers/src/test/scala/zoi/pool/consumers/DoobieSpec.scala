@@ -2,13 +2,14 @@ package zoi.pool.consumers
 
 import scala.concurrent.ExecutionContext
 
+import zio.test.TestAspect._
+import zio.test._
+import zio.{ZIO, durationInt}
+
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import doobie._
 import doobie.implicits._
-import zio.test.TestAspect._
-import zio.test._
-import zio.{ZIO, durationInt}
 import zoi.pool.{ConnectionPool, H2Backend, PoolConfig}
 
 /**

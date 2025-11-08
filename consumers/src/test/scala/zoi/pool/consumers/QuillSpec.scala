@@ -2,11 +2,12 @@ package zoi.pool.consumers
 
 import javax.sql.DataSource
 
-import io.getquill._
-import io.getquill.jdbczio.Quill
 import zio.test.TestAspect._
 import zio.test._
 import zio.{ZIO, ZLayer, durationInt}
+
+import io.getquill._
+import io.getquill.jdbczio.Quill
 import zoi.pool.{ConnectionPool, H2Backend, PoolConfig, PoolTestSupport}
 
 final case class Widget(id: Int, name: String)

@@ -5,7 +5,7 @@ import zio.test.TestAspect._
 import zio.test._
 import zio.{Promise, Ref, ZIO, durationInt}
 
-import PoolTestSupport._
+import zoi.pool.PoolTestSupport._
 
 /**
  * The behaviour every pool must show on every database. A backend is covered

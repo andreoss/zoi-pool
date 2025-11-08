@@ -1,6 +1,7 @@
 package zoi.pool.examples
 
 import zio.{Console, ZIO, ZIOAppDefault}
+
 import zoi.pool.{ConnectionPool, PoolConfig}
 
 /** Borrow a connection, run a query, give it back. */

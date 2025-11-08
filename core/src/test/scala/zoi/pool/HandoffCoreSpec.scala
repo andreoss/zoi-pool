@@ -5,7 +5,7 @@ import zio.test.TestAspect._
 import zio.test._
 import zio.{Chunk, Promise, Ref, Scope, UIO, ZIO, durationInt}
 
-import HandoffCore.{Acquired, Offered}
+import zoi.pool.HandoffCore.{Acquired, Offered}
 
 /**
  * The hand-off contract, run against both cores: the one the pool ships and

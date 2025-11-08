@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters._
 
 import zio.{Chunk, Clock, Duration, IO, Promise, Scope, UIO, ZIO}
 
-import HandoffCore.{Acquired, Offered}
+import zoi.pool.HandoffCore.{Acquired, Offered}
 
 /**
  * The shipped hand-off core: an uncontended acquire or release is a deque

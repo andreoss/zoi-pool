@@ -1,6 +1,7 @@
 package zoi.pool.examples
 
-import zio.{Console, ConfigProvider, ZIO, ZIOAppDefault}
+import zio.{ConfigProvider, Console, ZIO, ZIOAppDefault}
+
 import zoi.pool.ConnectionPool
 
 /** Build the pool from the application's own configuration. */

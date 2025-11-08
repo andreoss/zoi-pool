@@ -1,8 +1,8 @@
 package zoi.pool
 
-import zio.{Chunk, durationInt}
 import zio.test.Assertion._
 import zio.test._
+import zio.{Chunk, durationInt}
 
 object PoolConfigSpec extends ZIOSpecDefault {
 

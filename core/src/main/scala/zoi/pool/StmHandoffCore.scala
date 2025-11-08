@@ -5,7 +5,7 @@ import java.sql.SQLException
 import zio.stm.{STM, TRef, USTM, ZSTM}
 import zio.{Chunk, Duration, IO, UIO, ZIO}
 
-import HandoffCore.{Acquired, Offered}
+import zoi.pool.HandoffCore.{Acquired, Offered}
 
 /**
  * A hand-off core that keeps idle, total and shutdown inside one transactional
