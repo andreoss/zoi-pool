@@ -9,6 +9,8 @@ val testcontainersVersion = "1.21.3"
 val postgresVersion       = "42.7.8"
 val mysqlVersion          = "9.1.0"
 val mariadbVersion        = "3.5.1"
+val oracleVersion         = "23.9.0.25.07"
+val mssqlVersion          = "12.10.1.jre11"
 val slf4jVersion          = "2.0.16"
 val scala3Version         = "3.3.7"
 val scala213Version       = "2.13.17"
@@ -65,20 +67,24 @@ lazy val core = (project in file("core"))
   .settings(
     name := "zoi-pool",
     libraryDependencies ++= Seq(
-      "dev.zio"           %% "zio"                 % zioVersion,
-      "dev.zio"           %% "zio-test"            % zioVersion            % Test,
-      "dev.zio"           %% "zio-test-sbt"        % zioVersion            % Test,
-      "com.h2database"     % "h2"                  % h2Version             % Test,
-      "org.apache.derby"   % "derby"               % derbyVersion          % Test,
-      "org.apache.derby"   % "derbytools"          % derbyVersion          % Test,
-      "org.xerial"         % "sqlite-jdbc"         % sqliteVersion         % Test,
-      "org.testcontainers" % "postgresql"          % testcontainersVersion % Test,
-      "org.testcontainers" % "mysql"               % testcontainersVersion % Test,
-      "org.testcontainers" % "mariadb"             % testcontainersVersion % Test,
-      "org.postgresql"     % "postgresql"          % postgresVersion       % Test,
-      "com.mysql"          % "mysql-connector-j"   % mysqlVersion          % Test,
-      "org.mariadb.jdbc"   % "mariadb-java-client" % mariadbVersion        % Test,
-      "org.slf4j"          % "slf4j-simple"        % slf4jVersion          % Test,
+      "dev.zio"                 %% "zio"                 % zioVersion,
+      "dev.zio"                 %% "zio-test"            % zioVersion            % Test,
+      "dev.zio"                 %% "zio-test-sbt"        % zioVersion            % Test,
+      "com.h2database"           % "h2"                  % h2Version             % Test,
+      "org.apache.derby"         % "derby"               % derbyVersion          % Test,
+      "org.apache.derby"         % "derbytools"          % derbyVersion          % Test,
+      "org.xerial"               % "sqlite-jdbc"         % sqliteVersion         % Test,
+      "org.testcontainers"       % "postgresql"          % testcontainersVersion % Test,
+      "org.testcontainers"       % "mysql"               % testcontainersVersion % Test,
+      "org.testcontainers"       % "mariadb"             % testcontainersVersion % Test,
+      "org.testcontainers"       % "oracle-xe"           % testcontainersVersion % Test,
+      "org.testcontainers"       % "mssqlserver"         % testcontainersVersion % Test,
+      "org.postgresql"           % "postgresql"          % postgresVersion       % Test,
+      "com.mysql"                % "mysql-connector-j"   % mysqlVersion          % Test,
+      "org.mariadb.jdbc"         % "mariadb-java-client" % mariadbVersion        % Test,
+      "com.oracle.database.jdbc" % "ojdbc11"             % oracleVersion         % Test,
+      "com.microsoft.sqlserver"  % "mssql-jdbc"          % mssqlVersion          % Test,
+      "org.slf4j"                % "slf4j-simple"        % slf4jVersion          % Test,
     ),
   )
 

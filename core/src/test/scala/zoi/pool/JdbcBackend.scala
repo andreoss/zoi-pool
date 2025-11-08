@@ -70,9 +70,9 @@ object SQLiteBackend extends JdbcBackend {
  * One container serves the whole suite: the tests isolate themselves by what
  * they do, not by which database they do it in.
  */
-abstract class ContainerBackend(image: String) extends JdbcBackend {
+abstract class ContainerBackend(image: String, database: String = "zoi") extends JdbcBackend {
 
-  private val url = s"jdbc:tc:$image:///zoi?TC_DAEMON=true"
+  private val url = s"jdbc:tc:$image:///$database?TC_DAEMON=true"
 
   def freshUrl: UIO[String] = ZIO.succeed(url)
 }
@@ -90,4 +90,19 @@ object MySqlBackend extends ContainerBackend("mysql:8.4") {
 
 object MariaDbBackend extends ContainerBackend("mariadb:11") {
   val name = "MariaDB"
+}
+
+/** Oracle speaks its own dialect: no bare SELECT, and its own types. */
+object OracleBackend extends ContainerBackend("oracle:21-slim-faststart") {
+  val name = "Oracle"
+
+  override def selectOne: String = "SELECT 1 FROM DUAL"
+
+  override def createTableSql(table: String): String =
+    s"CREATE TABLE $table (id NUMBER(10) PRIMARY KEY, name VARCHAR2(64))"
+}
+
+/** SQL Server takes the database it ships with; it cannot be named. */
+object SqlServerBackend extends ContainerBackend("sqlserver:2022-latest", "") {
+  val name = "SQL Server"
 }
