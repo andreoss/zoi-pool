@@ -26,6 +26,12 @@ object PoolTestSupport {
     } finally statement.close()
   }
 
+  def execute(connection: Connection, sql: String): Unit = {
+    val statement = connection.createStatement()
+    try statement.execute(sql): Unit
+    finally statement.close()
+  }
+
   def scopedConnection(pool: ConnectionPool): ZIO[Scope, SQLException, Connection] =
     pool.connection
 }

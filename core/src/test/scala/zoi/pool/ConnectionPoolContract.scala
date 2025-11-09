@@ -3,7 +3,7 @@ package zoi.pool
 import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.test._
-import zio.{Promise, Ref, ZIO, durationInt}
+import zio.{Promise, Random, Ref, UIO, ZIO, durationInt}
 
 import zoi.pool.PoolTestSupport._
 
@@ -12,6 +12,12 @@ import zoi.pool.PoolTestSupport._
  * when it passes this suite; per-database specifics are added on top of it.
  */
 object ConnectionPoolContract {
+
+  private val tableName: UIO[String] =
+    Random.nextInt.map(n => s"zoi_${math.abs(n.toLong)}")
+
+  private def onlyIf(condition: Boolean): TestAspectPoly =
+    if (condition) TestAspect.identity else TestAspect.ignore
 
   def tests(backend: JdbcBackend): Spec[Any, Throwable] =
     suite(s"ConnectionPool contract: ${backend.name}")(
@@ -224,6 +230,25 @@ object ConnectionPoolContract {
           }
         } yield assertTrue(state.idle == 1, state.total == 1)
       },
+      test("a table one borrower creates is there for the next") {
+        for {
+          url   <- backend.freshUrl
+          table <- tableName
+          count <- withPool(backend.config(url).copy(maximumPoolSize = 1)) { pool =>
+            borrow(pool)(execute(_, backend.createTableSql(table))) *>
+              borrow(pool)(queryInt(_, s"SELECT COUNT(*) FROM $table"))
+                .ensuring(borrow(pool)(execute(_, backend.dropTableSql(table))).ignore)
+          }
+        } yield assertTrue(count == 0)
+      },
+      test("readOnly a borrower set is cleared before the next borrow") {
+        for {
+          url   <- backend.freshUrl
+          again <- withPool(backend.config(url).copy(maximumPoolSize = 1)) { pool =>
+            borrow(pool)(_.setReadOnly(true)) *> borrow(pool)(_.isReadOnly)
+          }
+        } yield assertTrue(!again)
+      } @@ onlyIf(backend.supportsReadOnly),
       test("the DataSource refuses per-call credentials") {
         for {
           url     <- backend.freshUrl
