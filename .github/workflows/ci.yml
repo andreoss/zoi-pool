@@ -86,3 +86,19 @@ jobs:
           BENCH_OUTPUT: table
           BENCH_BASELINE: bench/baseline-h2.csv
         run: sbt "bench/run"
+
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: graalvm-community
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Native example
+        run: ./examples/native-image.sh
