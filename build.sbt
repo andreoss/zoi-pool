@@ -55,6 +55,7 @@ val releaseSettings = Seq(
   mimaPreviousArtifacts      := Set.empty,
 )
 lazy val root       = (project in file("."))
+  .disablePlugins(MimaPlugin)
   .aggregate(core, interop, consumers, examples)
   .settings(
     name           := "zoi-pool-root",
@@ -92,6 +93,7 @@ lazy val core = (project in file("core"))
 // measures against never reach the library's classpath.
 // Run: `sbt "bench/run"`, configured by BENCH_* environment variables.
 lazy val bench = (project in file("bench"))
+  .disablePlugins(MimaPlugin)
   .dependsOn(core)
   .settings(commonSettings)
   .settings(
@@ -129,6 +131,7 @@ lazy val interop = (project in file("interop"))
 // Proof that consumers which only know JDBC can use the pool. Test only, so
 // their dependencies never reach the published artifacts.
 lazy val consumers = (project in file("consumers"))
+  .disablePlugins(MimaPlugin)
   .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
@@ -145,6 +148,7 @@ lazy val consumers = (project in file("consumers"))
 
 // Runnable examples. Built in CI so they cannot rot, never published.
 lazy val examples = (project in file("examples"))
+  .disablePlugins(MimaPlugin)
   .dependsOn(core)
   .settings(commonSettings)
   .settings(
