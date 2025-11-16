@@ -18,7 +18,7 @@ val scala213Version       = "2.13.17"
 inThisBuild(
   List(
     organization       := "dev.zoi",
-    version            := "0.1.0-SNAPSHOT",
+    version            := sys.env.getOrElse("ZOI_VERSION", "0.1.0-SNAPSHOT"),
     scalaVersion       := scala3Version,
     crossScalaVersions := List(scala213Version, scala3Version),
     semanticdbEnabled  := false,
@@ -29,6 +29,24 @@ inThisBuild(
     ),
     semanticdbVersion  := scalafixSemanticdb.revision,
     licenses           := List("LGPL-3.0" -> url("https://www.gnu.org/licenses/lgpl-3.0.html")),
+    scmInfo            := Some(
+      ScmInfo(
+        url("https://github.com/zoi-pool/zoi-pool"),
+        "scm:git:https://github.com/zoi-pool/zoi-pool.git",
+      ),
+    ),
+    credentials ++= sys.env
+      .get("SONATYPE_USERNAME")
+      .zip(sys.env.get("SONATYPE_PASSWORD"))
+      .map { case (user, password) =>
+        Credentials(
+          "Sonatype Nexus Repository Manager",
+          xerial.sbt.Sonatype.sonatypeCentralHost,
+          user,
+          password,
+        )
+      }
+      .toList,
   ),
 )
 
@@ -53,6 +71,10 @@ val releaseSettings = Seq(
   coverageFailOnMinimum      := true,
   // Set to the previous release once one exists; empty means nothing to check.
   mimaPreviousArtifacts      := Set.empty,
+  publishMavenStyle          := true,
+  sonatypeCredentialHost     := xerial.sbt.Sonatype.sonatypeCentralHost,
+  publishTo                  := sonatypePublishToBundle.value,
+  pgpPassphrase              := sys.env.get("PGP_PASSPHRASE").map(_.toArray),
 )
 lazy val root       = (project in file("."))
   .disablePlugins(MimaPlugin)
