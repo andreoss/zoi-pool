@@ -38,7 +38,7 @@ object BenchSettings {
       database = database,
       url = url,
       username = read("username").orElse(defaultUser(database)),
-      password = read("password").orElse(defaultUser(database)),
+      password = read("password").orElse(defaultPassword(database)),
       pools = if (args.nonEmpty) args else list("pools", "zoi,hikari,none"),
       workloads = list("workloads", "all"),
       iterations = int("iterations", if (heavy) 2000 else 20000),
@@ -65,6 +65,11 @@ object BenchSettings {
   }
 
   private def defaultUser(database: String): Option[String] = database match {
+    case "postgres" | "psql" | "mysql" => Some("bench")
+    case _                             => None
+  }
+
+  private def defaultPassword(database: String): Option[String] = database match {
     case "postgres" | "psql" | "mysql" => Some("bench")
     case _                             => None
   }

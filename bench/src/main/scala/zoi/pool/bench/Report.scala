@@ -52,8 +52,8 @@ object Report {
 
   /**
    * A run regresses when the library's gap to the incumbent grew past the
-   * tolerance. Only the library is watched: the no-pool column is a reference
-   * point, not something to hold steady.
+   * tolerance and the library's own rate fell by as much. A faster incumbent
+   * widens the gap on its own, and that is not the library regressing.
    */
   def regressions(
     settings: BenchSettings,
@@ -61,11 +61,19 @@ object Report {
   ): List[String] =
     settings.baseline.toList.flatMap { path =>
       val stored = read(path)
+      val rates  = library(results)
       ratios(results).flatMap { case (key, current) =>
-        stored.get(key).toList.flatMap { previous =>
-          val worse = (current - previous) / math.max(previous, 1e-9)
-          if (worse > settings.tolerance)
-            List(f"$key%s: gap to hikari grew ${previous}%.2fx -> ${current}%.2fx")
+        stored.ratios.get(key).toList.flatMap { previous =>
+          val wider  = (current - previous) / math.max(previous, 1e-9)
+          val slower = stored.rates
+            .get(key)
+            .map(was => (was - rates.getOrElse(key, 0.0)) / math.max(was, 1e-9))
+            .getOrElse(0.0)
+          if (wider > settings.tolerance && slower > settings.tolerance)
+            List(
+              f"$key%s: gap to hikari grew ${previous}%.2fx -> ${current}%.2fx " +
+                f"while its own rate fell ${slower * 100}%.0f%%",
+            )
           else Nil
         }
       }
@@ -82,7 +90,12 @@ object Report {
         }
       }
 
-  private def read(path: String): Map[String, Double] = {
+  private final case class Baseline(ratios: Map[String, Double], rates: Map[String, Double])
+
+  private def library(results: List[Measurement]): Map[String, Double] =
+    results.filter(_.pool == "zoi").map(m => s"${m.workload}/${m.pool}" -> m.opsPerSecond).toMap
+
+  private def read(path: String): Baseline = {
     val file = new java.io.File(path)
     if (!file.isFile) throw new IllegalArgumentException(s"no baseline at $path")
     val source = Source.fromFile(path)
@@ -91,9 +104,10 @@ object Report {
       val parsed = rows.collect {
         case _ :: workload :: pool :: ops :: _ => (workload, pool, ops.toDouble)
       }
-      ratios(parsed.map { case (workload, pool, ops) =>
+      val stored = parsed.map { case (workload, pool, ops) =>
         Measurement("", workload, pool, ops, ops, ops, 0.0, 0.0, 0.0)
-      })
+      }
+      Baseline(ratios(stored), library(stored))
     } finally source.close()
   }
 

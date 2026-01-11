@@ -127,6 +127,8 @@ lazy val bench = (project in file("bench"))
     run / baseDirectory       := (LocalRootProject / baseDirectory).value,
     libraryDependencies ++= Seq(
       "dev.zio"       %% "zio"               % zioVersion,
+      "dev.zio"       %% "zio-test"          % zioVersion % Test,
+      "dev.zio"       %% "zio-test-sbt"      % zioVersion % Test,
       "com.zaxxer"     % "HikariCP"          % "5.1.0",
       "com.h2database" % "h2"                % h2Version,
       "org.postgresql" % "postgresql"        % "42.7.8",

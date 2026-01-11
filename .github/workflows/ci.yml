@@ -85,7 +85,7 @@ jobs:
           BENCH_FORKS: "3"
           BENCH_OUTPUT: table
           BENCH_BASELINE: bench/baseline-h2.csv
-        run: sbt "bench/run"
+        run: sbt "+bench/test" "bench/run"
 
   native:
     runs-on: ubuntu-latest
