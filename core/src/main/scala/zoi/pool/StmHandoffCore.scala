@@ -50,14 +50,6 @@ final private[pool] class StmHandoffCore[A](
   def releaseSlot: UIO[Unit] =
     totalRef.update(t => if (t > 0) t - 1 else 0).commit.uninterruptible
 
-  def removeIdle(resource: A): UIO[Boolean] =
-    ZSTM.atomically {
-      idleRef.modify { idle =>
-        val without = StmHandoffCore.removeFirst(idle, resource)
-        (without.length != idle.length, without)
-      }
-    }.uninterruptible
-
   def drainIdle: UIO[Chunk[A]] =
     idleRef.modify(idle => (Chunk.fromIterable(idle), Nil)).commit.uninterruptible
 
@@ -168,10 +160,5 @@ private[pool] object StmHandoffCore {
       } else true
     }
     (builder.result(), kept.reverse)
-  }
-
-  private def removeFirst[A](list: List[A], value: A): List[A] = {
-    val index = list.indexWhere(_.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef])
-    if (index < 0) list else list.take(index) ::: list.drop(index + 1)
   }
 }

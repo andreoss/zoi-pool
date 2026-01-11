@@ -26,9 +26,6 @@ private[pool] trait HandoffCore[A] {
   /** Frees a slot whose resource was never created or has been destroyed. */
   def releaseSlot: UIO[Unit]
 
-  /** Removes one specific idle resource, reporting whether it was still there. */
-  def removeIdle(resource: A): UIO[Boolean]
-
   /** Takes every idle resource, leaving the slots reserved for the caller. */
   def drainIdle: UIO[Chunk[A]]
 

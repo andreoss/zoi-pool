@@ -4,8 +4,6 @@ import java.sql.SQLException
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 
-import scala.jdk.CollectionConverters._
-
 import zio.{Chunk, Clock, Duration, IO, Promise, Scope, UIO, ZIO}
 
 import zoi.pool.HandoffCore.{Acquired, Offered}
@@ -48,7 +46,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
     ZIO.suspendSucceed {
       if (closed.get()) ZIO.succeed(Offered.Discarded)
       else
-        handDirectly(resource) match {
+        handDirectly match {
           case null   =>
             idle.addFirst(resource)
             if (closed.get() && idle.remove(resource)) ZIO.succeed(Offered.Discarded)
@@ -59,7 +57,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
     }
 
   /** Hands a returned resource straight to a waiter, without touching the deque. */
-  private def handDirectly(resource: A): LockFreeHandoffCore.Waiter[A] =
+  private def handDirectly: LockFreeHandoffCore.Waiter[A] =
     if (waiting.get() <= 0) null
     else {
       val waiter = takeWaiter()
@@ -69,13 +67,11 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
         waiter
       }
     }
-  def releaseSlot: UIO[Unit]                                           =
+  def releaseSlot: UIO[Unit]                              =
     ZIO.suspendSucceed {
       total.decrementAndGet()
       complete(pairWaiters())
     }
-
-  def removeIdle(resource: A): UIO[Boolean] = ZIO.succeed(idle.remove(resource))
 
   def drainIdle: UIO[Chunk[A]] =
     ZIO.succeed {
@@ -294,7 +290,6 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
     if (paired.isEmpty) ZIO.unit
     else ZIO.foreachDiscard(paired)(entry => entry._1.promise.succeed(entry._2).unit)
 
-  private[pool] def idleSnapshot: List[A] = idle.iterator().asScala.toList
 }
 
 private[pool] object LockFreeHandoffCore {

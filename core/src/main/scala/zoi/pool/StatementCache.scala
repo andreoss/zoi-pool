@@ -29,8 +29,6 @@ final private[pool] class StatementCache(connection: Connection, capacity: Int) 
       }
     }
 
-  def size: Int = synchronized(entries.size)
-
   def close(): Unit =
     synchronized {
       entries.values.foreach(closeQuietly)

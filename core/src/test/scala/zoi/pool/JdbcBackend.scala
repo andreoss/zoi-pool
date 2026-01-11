@@ -44,9 +44,6 @@ object DerbyBackend extends JdbcBackend {
     uniqueSuffix.map(id => s"jdbc:derby:memory:zoi$id;create=true")
 
   override def selectOne: String = "SELECT 1 FROM SYSIBM.SYSDUMMY1"
-
-  override def createTableSql(table: String): String =
-    s"CREATE TABLE $table (id INT PRIMARY KEY, name VARCHAR(64))"
 }
 
 /** SQLite is the awkward one: one writer, and state it refuses to change. */
@@ -83,9 +80,6 @@ object PostgresBackend extends ContainerBackend("postgresql:16-alpine") {
 
 object MySqlBackend extends ContainerBackend("mysql:8.4") {
   val name = "MySQL"
-
-  override def createTableSql(table: String): String =
-    s"CREATE TABLE $table (id INT PRIMARY KEY, name VARCHAR(64))"
 }
 
 object MariaDbBackend extends ContainerBackend("mariadb:11") {

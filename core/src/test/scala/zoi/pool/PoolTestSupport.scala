@@ -1,8 +1,8 @@
 package zoi.pool
 
-import java.sql.{Connection, SQLException}
+import java.sql.Connection
 
-import zio.{Scope, ZIO}
+import zio.ZIO
 
 /** Helpers shared by every pool spec. */
 object PoolTestSupport {
@@ -31,7 +31,4 @@ object PoolTestSupport {
     try statement.execute(sql): Unit
     finally statement.close()
   }
-
-  def scopedConnection(pool: ConnectionPool): ZIO[Scope, SQLException, Connection] =
-    pool.connection
 }

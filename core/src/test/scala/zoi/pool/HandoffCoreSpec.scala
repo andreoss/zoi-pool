@@ -159,17 +159,6 @@ object HandoffCoreSpec extends ZIOSpecDefault {
             )
           }
         },
-        test("removing a specific idle resource reports whether it was there") {
-          ZIO.scoped {
-            for {
-              core   <- make("t", 2)
-              _      <- core.acquire(1.second)
-              _      <- core.offer(5)
-              first  <- core.removeIdle(5)
-              second <- core.removeIdle(5)
-            } yield assertTrue(first, !second)
-          }
-        },
         test("many acquirers over a small core keep the cap and lose nothing") {
           ZIO.scoped {
             for {
