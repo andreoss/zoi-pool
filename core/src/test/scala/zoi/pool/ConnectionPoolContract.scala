@@ -249,6 +249,24 @@ object ConnectionPoolContract {
           }
         } yield assertTrue(!again)
       } @@ onlyIf(backend.supportsReadOnly),
+      test("the configured catalog reaches every borrowed connection") {
+        for {
+          url     <- backend.freshUrl
+          current <- withPool(backend.config(url))(borrow(_)(_.getCatalog))
+          seen    <- withPool(backend.config(url).copy(catalog = Option(current))) {
+            borrow(_)(_.getCatalog)
+          }
+        } yield assertTrue(seen == current)
+      } @@ onlyIf(backend.supportsCatalog),
+      test("the configured schema reaches every borrowed connection") {
+        for {
+          url     <- backend.freshUrl
+          current <- withPool(backend.config(url))(borrow(_)(_.getSchema))
+          seen    <- withPool(backend.config(url).copy(schema = Option(current))) {
+            borrow(_)(_.getSchema)
+          }
+        } yield assertTrue(seen == current)
+      } @@ onlyIf(backend.supportsSchema),
       test("the DataSource refuses per-call credentials") {
         for {
           url     <- backend.freshUrl
