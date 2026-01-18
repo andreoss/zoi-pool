@@ -1,7 +1,6 @@
 package zoi.pool.interop
 
 import zio.jdbc.{ZConnectionPool, sqlInterpolator, transaction}
-import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.test._
 import zio.{ZIO, ZLayer, durationInt}

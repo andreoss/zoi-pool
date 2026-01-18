@@ -3,7 +3,7 @@ package zoi.pool
 import java.sql.{Connection, DriverManager, SQLException}
 import java.util.Properties
 
-import zio.{Duration, IO, UIO, ZIO}
+import zio.{IO, UIO, ZIO}
 
 /** Opens, configures, validates and closes physical connections for one pool. */
 final private[pool] class ConnectionFactory(config: PoolConfig) {

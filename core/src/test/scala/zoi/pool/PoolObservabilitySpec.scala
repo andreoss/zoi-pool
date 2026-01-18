@@ -2,8 +2,6 @@ package zoi.pool
 
 import java.lang.management.ManagementFactory
 
-import zio.metrics.MetricKey
-import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.test._
 import zio.{Promise, Scope, ZIO, durationInt}

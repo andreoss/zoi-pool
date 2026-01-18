@@ -53,8 +53,13 @@ inThisBuild(
 val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Werror"),
   scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, _)) => Seq("-source:3.0-migration")
-    case _            => Seq("-Xsource:3", "-Wconf:cat=scala3-migration:s")
+    case Some((3, _)) => Seq("-source:3.0-migration", "-Wunused:imports,privates,locals")
+    case _            =>
+      Seq(
+        "-Xsource:3",
+        "-Wconf:cat=scala3-migration:s",
+        "-Wunused:imports,privates,locals,patvars",
+      )
   }),
   testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
   // Forked so JDBC driver discovery sees a flat classpath: DriverManager only

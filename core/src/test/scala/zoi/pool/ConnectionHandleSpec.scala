@@ -3,7 +3,6 @@ package zoi.pool
 import java.sql.{Connection, ResultSet, SQLException, Statement}
 import java.util.Properties
 
-import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.test._
 import zio.{Scope, ZIO, durationInt}
