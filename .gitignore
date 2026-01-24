@@ -7,6 +7,5 @@ project/project/
 .idea/
 .vscode/
 *.log
-derby.log
 doc/
 references/
