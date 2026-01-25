@@ -30,6 +30,8 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
   private val total   = new AtomicInteger(0)
   private val waiting = new AtomicInteger(0)
   private val nextDue = new java.util.concurrent.atomic.AtomicLong(Long.MaxValue)
+  private val wakeup  =
+    new java.util.concurrent.atomic.AtomicReference[Promise[Nothing, Unit]](null)
   private val closed  = new AtomicBoolean(false)
 
   def acquire(timeout: Duration): IO[SQLException, Acquired[A]] =
@@ -150,7 +152,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
           waiting.incrementAndGet()
           recordDeadline(waiter.deadlineNanos)
           waiters.addLast(waiter)
-          register(waiter)
+          rouseReaper *> register(waiter)
         }
       }
     }
@@ -182,13 +184,30 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
   private[pool] def reaper: UIO[Unit] = {
     def loop: UIO[Unit] =
       ZIO.suspendSucceed {
-        val pause =
-          if (waiting.get() <= 0) LockFreeHandoffCore.QuietPause
-          else LockFreeHandoffCore.BusyPause
-        ZIO.sleep(pause) *> sweep *> loop
+        if (waiting.get() <= 0) awaitWaiter *> loop
+        else ZIO.sleep(LockFreeHandoffCore.BusyPause) *> sweep *> loop
       }
     loop
   }
+
+  /** An idle pool parks the reaper instead of waking it to find nothing. */
+  private def awaitWaiter: UIO[Unit] =
+    Promise.make[Nothing, Unit].flatMap { gate =>
+      ZIO.suspendSucceed {
+        wakeup.set(gate)
+        if (waiting.get() > 0 || closed.get()) {
+          wakeup.compareAndSet(gate, null)
+          ZIO.unit
+        } else gate.await
+      }
+    }
+
+  /** Published after the waiter is queued, so the signal can never be lost. */
+  private def rouseReaper: UIO[Unit] =
+    ZIO.suspendSucceed {
+      val gate = wakeup.getAndSet(null)
+      if (gate eq null) ZIO.unit else gate.succeed(()).unit
+    }
 
   /** Remembers the earliest budget, so a sweep that cannot find work is skipped. */
   private def recordDeadline(deadlineNanos: Long): Unit = {
@@ -294,8 +313,7 @@ final private[pool] class LockFreeHandoffCore[A](poolName: String, maxSize: Int)
 
 private[pool] object LockFreeHandoffCore {
 
-  private val QuietPause: Duration = Duration.fromMillis(50)
-  private val BusyPause: Duration  = Duration.fromMillis(2)
+  private val BusyPause: Duration = Duration.fromMillis(2)
 
   /** One parked acquirer, handed its outcome exactly once. */
   final private[pool] class Waiter[A](
