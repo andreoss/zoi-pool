@@ -1,8 +1,5 @@
 package zoi.pool
 
-import zio.test.TestAspect.{ifEnvSet, sequential}
-
-object SqlServerConnectionPoolSpec extends ConnectionPoolContractSpec {
+object SqlServerConnectionPoolSpec extends ContainerContractSpec {
   val backend: JdbcBackend = SqlServerBackend
-  override def spec        = super.spec @@ ifEnvSet("USE_CONTAINERS") @@ sequential
 }

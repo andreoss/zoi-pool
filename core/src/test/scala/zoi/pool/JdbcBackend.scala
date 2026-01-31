@@ -67,6 +67,12 @@ object SQLiteBackend extends JdbcBackend {
  * One container serves the whole suite: the tests isolate themselves by what
  * they do, not by which database they do it in.
  */
+object ContainerBackend {
+
+  /** The one name the container tier is switched on by. */
+  val Flag: String = "USE_CONTAINERS"
+}
+
 abstract class ContainerBackend(image: String, database: String = "zoi") extends JdbcBackend {
 
   private val url = s"jdbc:tc:$image:///$database?TC_DAEMON=true"

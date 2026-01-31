@@ -285,3 +285,9 @@ abstract class ConnectionPoolContractSpec extends ZIOSpecDefault {
   def backend: JdbcBackend
   override def spec: Spec[Any, Throwable] = ConnectionPoolContract.tests(backend)
 }
+
+/** A contract run that a container runtime has to be present for. */
+abstract class ContainerContractSpec extends ConnectionPoolContractSpec {
+  override def spec: Spec[Any, Throwable] =
+    super.spec @@ ifEnvSet(ContainerBackend.Flag) @@ sequential
+}
